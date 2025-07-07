@@ -1,15 +1,17 @@
 {
-  "name": "frontend",
+  "name": "figma-to-code-frontend",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Frontend for Figma to Code Converter",
+  "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": ["figma", "code-generation", "react", "typescript"],
+  "author": "jawahirenakash",
   "license": "ISC",
-  "type": "commonjs",
   "dependencies": {
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
