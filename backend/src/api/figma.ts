@@ -91,7 +91,7 @@ router.get('/oauth/callback', async (req, res) => {
     console.log('Attempting OAuth token exchange...');
     
     // Try the correct endpoint - Figma OAuth token endpoint
-    const response = await axios.post('https://www.figma.com/oauth/token', tokenData, {
+    const response = await axios.post('https://www.figma.com/api/oauth/token', tokenData, {
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
         'Accept': 'application/json',
