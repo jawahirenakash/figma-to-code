@@ -54,13 +54,15 @@ router.get('/oauth/callback', async (req, res) => {
   // Handle OAuth errors
   if (error) {
     console.error('OAuth error:', error);
-    res.redirect(`http://localhost:5173/?error=${encodeURIComponent(error as string)}`);
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    res.redirect(`${frontendUrl}/?error=${encodeURIComponent(error as string)}`);
     return;
   }
   
   if (!code || !state) {
     console.error('Missing code or state in OAuth callback');
-    res.redirect('http://localhost:5173/?error=missing_oauth_params');
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    res.redirect(`${frontendUrl}/?error=missing_oauth_params`);
     return;
   }
 
@@ -68,7 +70,8 @@ router.get('/oauth/callback', async (req, res) => {
   const stateData = oauthStates.get(state as string);
   if (!stateData) {
     console.error('Invalid OAuth state token');
-    res.redirect('http://localhost:5173/?error=invalid_state');
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    res.redirect(`${frontendUrl}/?error=invalid_state`);
     return;
   }
   
@@ -105,7 +108,8 @@ router.get('/oauth/callback', async (req, res) => {
 
     // In production, store tokens securely (encrypted database, secure cookies, etc.)
     // For now, redirect with token (not secure for production)
-    res.redirect(`http://localhost:5173/?access_token=${encodeURIComponent(access_token)}`);
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    res.redirect(`${frontendUrl}/?access_token=${encodeURIComponent(access_token)}`);
     
   } catch (err) {
     console.error('OAuth token exchange failed:', err);
@@ -116,9 +120,11 @@ router.get('/oauth/callback', async (req, res) => {
       console.error('Response headers:', err.response?.headers);
       
       const errorMessage = err.response?.data?.error_description || err.response?.data?.error || err.message;
-      res.redirect(`http://localhost:5173/?error=${encodeURIComponent(errorMessage)}`);
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+      res.redirect(`${frontendUrl}/?error=${encodeURIComponent(errorMessage)}`);
     } else {
-      res.redirect('http://localhost:5173/?error=oauth_failed');
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+      res.redirect(`${frontendUrl}/?error=oauth_failed`);
     }
   }
 });
