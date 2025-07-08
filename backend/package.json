@@ -1,27 +1,27 @@
 {
-  "name": "backend",
+  "name": "figma-to-code-backend",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Backend for Figma to Code Converter",
+  "main": "dist/index.js",
   "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": ["figma", "api", "express", "typescript"],
+  "author": "jawahirenakash",
   "license": "ISC",
-  "type": "commonjs",
   "dependencies": {
-    "@types/cors": "^2.8.19",
-    "archiver": "^7.0.1",
     "axios": "^1.10.0",
     "cors": "^2.8.5",
     "dotenv": "^17.0.1",
-    "express": "^4.21.2"
+    "express": "^4.21.0"
   },
   "devDependencies": {
-    "@types/express": "^4.17.23",
-    "@types/node": "^24.0.10",
-    "nodemon": "^3.1.10",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.10.2",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3"
   }
