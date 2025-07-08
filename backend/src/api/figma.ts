@@ -129,44 +129,6 @@ router.get('/oauth/callback', async (req, res) => {
   }
 });
 
-// List user files
-router.post('/files', async (req, res) => {
-  const { accessToken } = req.body;
-  
-  if (!accessToken) {
-    res.status(400).json({ error: 'Access token is required' });
-    return;
-  }
-
-  try {
-    const response = await axios.get('https://api.figma.com/v1/me/files', {
-      headers: { 
-        'X-Figma-Token': accessToken,
-        'Content-Type': 'application/json'
-      }
-    });
-    
-    res.json(response.data);
-  } catch (err) {
-    console.error('Failed to fetch Figma files:', err);
-    
-    if (axios.isAxiosError(err)) {
-      if (err.response?.status === 401) {
-        res.status(401).json({ error: 'Invalid or expired access token' });
-      } else if (err.response?.status === 403) {
-        res.status(403).json({ error: 'Insufficient permissions to access files' });
-      } else {
-        res.status(err.response?.status || 500).json({ 
-          error: 'Failed to fetch Figma files',
-          details: err.response?.data?.message || err.message
-        });
-      }
-    } else {
-      res.status(500).json({ error: 'Failed to fetch Figma files' });
-    }
-  }
-});
-
 // Extract IR from Figma file
 router.post('/extract', async (req, res) => {
   const { accessToken, fileKey } = req.body;

@@ -42,8 +42,6 @@ interface GeneratedCode {
 
 function App() {
   const [accessToken, setAccessToken] = useState<string | null>(null);
-  const [files, setFiles] = useState<FigmaFile[]>([]);
-  const [selectedFile, setSelectedFile] = useState<FigmaFile | null>(null);
   const [generatedCode, setGeneratedCode] = useState<GeneratedCode | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -77,35 +75,6 @@ function App() {
     window.location.href = `${BACKEND_URL}/api/figma/oauth/login`;
   };
 
-  const fetchFiles = async () => {
-    if (!accessToken) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await axios.post(`${BACKEND_URL}/api/figma/files`, {
-        accessToken
-      });
-      console.log('Figma files response:', response.data);
-      // The Figma API returns { files: [...] }
-      setFiles(response.data.files || []);
-    } catch (err) {
-      console.error('Error fetching files:', err);
-      if (axios.isAxiosError(err)) {
-        if (err.response?.status === 401) {
-          setError('Access token expired. Please login again.');
-        } else if (err.response?.status === 403) {
-          setError('Insufficient permissions to access Figma files.');
-        } else {
-          setError(`Failed to fetch Figma files: ${err.response?.data?.error || err.message}`);
-        }
-      } else {
-        setError('Failed to fetch Figma files');
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const extractDesign = async (file: FigmaFile) => {
     if (!accessToken) return;
     setLoading(true);
@@ -120,7 +89,6 @@ function App() {
         platform
       });
       setGeneratedCode(codeResponse.data);
-      setSelectedFile(file);
     } catch (err) {
       setError('Failed to extract design or generate code');
       console.error('Error:', err);
@@ -135,7 +103,7 @@ function App() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${selectedFile?.name || 'design'}.${getFileExtension(platform)}`;
+    a.download = `figma-design.${getFileExtension(platform)}`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -215,12 +183,6 @@ function App() {
       });
       
       setGeneratedCode(codeResponse.data);
-      setSelectedFile({
-        key: fileKey,
-        name: `Figma Design (${fileKey})`,
-        lastModified: new Date().toISOString()
-      });
-      setShowUrlInput(false);
     } catch (err) {
       setError('Failed to extract design or generate code. Make sure you have access to this file.');
       console.error('Error:', err);
@@ -310,85 +272,10 @@ function App() {
             
             <Divider sx={{ my: 3 }} />
             
-            <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="h5">
-                Your Figma Files
-              </Typography>
-              <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-                <Typography variant="body2">Platform:</Typography>
-                <Button 
-                  variant={platform === 'react' ? 'contained' : 'outlined'}
-                  size="small"
-                  onClick={() => setPlatform('react')}
-                >
-                  React
-                </Button>
-                <Button 
-                  variant={platform === 'swiftui' ? 'contained' : 'outlined'}
-                  size="small"
-                  onClick={() => setPlatform('swiftui')}
-                >
-                  SwiftUI
-                </Button>
-                <Button 
-                  variant={platform === 'jetpack' ? 'contained' : 'outlined'}
-                  size="small"
-                  onClick={() => setPlatform('jetpack')}
-                >
-                  Jetpack
-                </Button>
-                <Button 
-                  variant="outlined" 
-                  onClick={fetchFiles}
-                  disabled={loading}
-                >
-                  {loading ? <CircularProgress size={20} /> : 'Refresh Files'}
-                </Button>
-              </Box>
-            </Box>
-            {files.length === 0 && !loading && (
-              <Paper sx={{ p: 3, textAlign: 'center' }}>
-                <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
-                  {accessToken ? 'No files found. Click "Refresh Files" to load your Figma files.' : 'Please login to access your Figma files.'}
-                </Typography>
-                {accessToken && (
-                  <Button 
-                    variant="contained" 
-                    onClick={fetchFiles}
-                    disabled={loading}
-                  >
-                    {loading ? <CircularProgress size={20} /> : 'Load My Files'}
-                  </Button>
-                )}
-              </Paper>
-            )}
-            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 3 }}>
-              {files.map((file) => (
-                <Card key={file.key}>
-                  <CardContent>
-                    <Typography variant="h6" noWrap>
-                      {file.name}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Last modified: {new Date(file.lastModified).toLocaleDateString()}
-                    </Typography>
-                  </CardContent>
-                  <CardActions>
-                    <Button 
-                      size="small" 
-                      onClick={() => extractDesign(file)}
-                      disabled={loading}
-                    >
-                      Convert to Code
-                    </Button>
-                  </CardActions>
-                </Card>
-              ))}
-            </Box>
-            {selectedFile && generatedCode && (
+            {generatedCode && (
               <Paper sx={{ p: 3, mt: 3 }}>
                 <Typography variant="h6" gutterBottom>
-                  Generated Code: {selectedFile.name}
+                  Generated Code
                 </Typography>
                 <Box sx={{ mb: 2 }}>
                   <Typography variant="body2" color="text.secondary" gutterBottom>
