@@ -9,7 +9,9 @@ import {
   Alert,
   Card,
   CardContent,
-  CardActions
+  CardActions,
+  TextField,
+  Divider
 } from '@mui/material';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import axios from 'axios';
@@ -46,6 +48,8 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [platform, setPlatform] = useState<'swiftui' | 'react' | 'jetpack'>('react');
+  const [figmaUrl, setFigmaUrl] = useState<string>('');
+  const [showUrlInput, setShowUrlInput] = useState(false);
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -129,6 +133,84 @@ function App() {
     }
   };
 
+  const extractFileKeyFromUrl = (url: string): string | null => {
+    // Handle file URLs: https://www.figma.com/file/KEY/...
+    const fileMatch = url.match(/figma\.com\/file\/([a-zA-Z0-9]+)/);
+    if (fileMatch) {
+      return fileMatch[1];
+    }
+    
+    // Handle design URLs: https://www.figma.com/design/KEY/...
+    const designMatch = url.match(/figma\.com\/design\/([a-zA-Z0-9]+)/);
+    if (designMatch) {
+      return designMatch[1];
+    }
+    
+    return null;
+  };
+
+  const validateFigmaUrl = (url: string): boolean => {
+    const fileKey = extractFileKeyFromUrl(url);
+    return fileKey !== null;
+  };
+
+  const convertDesignUrlToFileUrl = (designUrl: string): string => {
+    const fileKey = extractFileKeyFromUrl(designUrl);
+    if (fileKey) {
+      return `https://www.figma.com/file/${fileKey}`;
+    }
+    return designUrl;
+  };
+
+  const handleUrlSubmit = async () => {
+    if (!figmaUrl.trim()) {
+      setError('Please enter a Figma URL');
+      return;
+    }
+
+    if (!validateFigmaUrl(figmaUrl)) {
+      setError('Invalid Figma URL. Please use a URL like: https://www.figma.com/file/... or https://www.figma.com/design/...');
+      return;
+    }
+
+    const fileKey = extractFileKeyFromUrl(figmaUrl);
+    if (!fileKey) {
+      setError('Could not extract file key from URL');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    
+    try {
+      // Convert design URL to file URL if needed
+      const fileUrl = figmaUrl.includes('/design/') ? convertDesignUrlToFileUrl(figmaUrl) : figmaUrl;
+      
+      const response = await axios.post(`${BACKEND_URL}/api/figma/extract`, {
+        accessToken,
+        fileKey
+      });
+      
+      const codeResponse = await axios.post(`${BACKEND_URL}/api/figma/generate`, {
+        ir: response.data,
+        platform
+      });
+      
+      setGeneratedCode(codeResponse.data);
+      setSelectedFile({
+        key: fileKey,
+        name: `Figma Design (${fileKey})`,
+        lastModified: new Date().toISOString()
+      });
+      setShowUrlInput(false);
+    } catch (err) {
+      setError('Failed to extract design or generate code. Make sure you have access to this file.');
+      console.error('Error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <ThemeProvider theme={theme}>
       <Container maxWidth="lg" sx={{ py: 4 }}>
@@ -164,6 +246,52 @@ function App() {
           </Box>
         ) : (
           <Box>
+            {/* URL Input Section */}
+            <Paper sx={{ p: 3, mb: 3 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                <Typography variant="h6">
+                  Convert by URL
+                </Typography>
+                <Button 
+                  variant="outlined" 
+                  size="small"
+                  onClick={() => setShowUrlInput(!showUrlInput)}
+                >
+                  {showUrlInput ? 'Hide' : 'Show'} URL Input
+                </Button>
+              </Box>
+              
+              {showUrlInput && (
+                <Box>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    Enter a Figma file URL or design URL to convert it to code. 
+                    Supports both <code>figma.com/file/...</code> and <code>figma.com/design/...</code> URLs.
+                  </Typography>
+                  <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
+                    <TextField
+                      fullWidth
+                      label="Figma URL"
+                      placeholder="https://www.figma.com/file/... or https://www.figma.com/design/..."
+                      value={figmaUrl}
+                      onChange={(e) => setFigmaUrl(e.target.value)}
+                      disabled={loading}
+                      size="small"
+                    />
+                    <Button 
+                      variant="contained" 
+                      onClick={handleUrlSubmit}
+                      disabled={loading || !figmaUrl.trim()}
+                      sx={{ minWidth: 120 }}
+                    >
+                      {loading ? <CircularProgress size={20} /> : 'Convert'}
+                    </Button>
+                  </Box>
+                </Box>
+              )}
+            </Paper>
+            
+            <Divider sx={{ my: 3 }} />
+            
             <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <Typography variant="h5">
                 Your Figma Files
