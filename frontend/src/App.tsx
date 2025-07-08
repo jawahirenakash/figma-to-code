@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   Container, 
   Typography, 
@@ -7,7 +7,6 @@ import {
   Paper, 
   CircularProgress,
   Alert,
-  Grid,
   Card,
   CardContent,
   CardActions
@@ -15,7 +14,6 @@ import {
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import axios from 'axios';
 
-// Create theme
 const theme = createTheme({
   palette: {
     primary: {
@@ -27,14 +25,12 @@ const theme = createTheme({
   },
 });
 
-// Get backend URL from environment variables
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
 
 interface FigmaFile {
   key: string;
   name: string;
   lastModified: string;
-  thumbnailUrl?: string;
 }
 
 interface GeneratedCode {
@@ -52,14 +48,12 @@ function App() {
   const [platform, setPlatform] = useState<'swiftui' | 'react' | 'jetpack'>('react');
 
   useEffect(() => {
-    // Check for access token in URL params
     const urlParams = new URLSearchParams(window.location.search);
     const token = urlParams.get('access_token');
     const error = urlParams.get('error');
     
     if (token) {
       setAccessToken(token);
-      // Clear URL params
       window.history.replaceState({}, document.title, window.location.pathname);
     }
     
@@ -75,10 +69,8 @@ function App() {
 
   const fetchFiles = async () => {
     if (!accessToken) return;
-    
     setLoading(true);
     setError(null);
-    
     try {
       const response = await axios.post(`${BACKEND_URL}/api/figma/files`, {
         accessToken
@@ -94,22 +86,17 @@ function App() {
 
   const extractDesign = async (file: FigmaFile) => {
     if (!accessToken) return;
-    
     setLoading(true);
     setError(null);
-    
     try {
       const response = await axios.post(`${BACKEND_URL}/api/figma/extract`, {
         accessToken,
         fileKey: file.key
       });
-      
-      // Generate code for selected platform
       const codeResponse = await axios.post(`${BACKEND_URL}/api/figma/generate`, {
         ir: response.data,
         platform
       });
-      
       setGeneratedCode(codeResponse.data);
       setSelectedFile(file);
     } catch (err) {
@@ -122,7 +109,6 @@ function App() {
 
   const downloadCode = () => {
     if (!generatedCode) return;
-    
     const blob = new Blob([generatedCode.code], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -149,17 +135,14 @@ function App() {
         <Typography variant="h3" component="h1" gutterBottom align="center" color="primary">
           Figma to Code Converter
         </Typography>
-        
         <Typography variant="h6" align="center" color="text.secondary" sx={{ mb: 4 }}>
           Convert your Figma designs into SwiftUI, React, and Jetpack Compose code
         </Typography>
-
         {error && (
           <Alert severity="error" sx={{ mb: 3 }}>
             {error}
           </Alert>
         )}
-
         {!accessToken ? (
           <Box textAlign="center">
             <Paper sx={{ p: 4, maxWidth: 400, mx: 'auto' }}>
@@ -185,15 +168,38 @@ function App() {
               <Typography variant="h5">
                 Your Figma Files
               </Typography>
-              <Button 
-                variant="outlined" 
-                onClick={fetchFiles}
-                disabled={loading}
-              >
-                {loading ? <CircularProgress size={20} /> : 'Refresh Files'}
-              </Button>
+              <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                <Typography variant="body2">Platform:</Typography>
+                <Button 
+                  variant={platform === 'react' ? 'contained' : 'outlined'}
+                  size="small"
+                  onClick={() => setPlatform('react')}
+                >
+                  React
+                </Button>
+                <Button 
+                  variant={platform === 'swiftui' ? 'contained' : 'outlined'}
+                  size="small"
+                  onClick={() => setPlatform('swiftui')}
+                >
+                  SwiftUI
+                </Button>
+                <Button 
+                  variant={platform === 'jetpack' ? 'contained' : 'outlined'}
+                  size="small"
+                  onClick={() => setPlatform('jetpack')}
+                >
+                  Jetpack
+                </Button>
+                <Button 
+                  variant="outlined" 
+                  onClick={fetchFiles}
+                  disabled={loading}
+                >
+                  {loading ? <CircularProgress size={20} /> : 'Refresh Files'}
+                </Button>
+              </Box>
             </Box>
-
             {files.length === 0 && !loading && (
               <Paper sx={{ p: 3, textAlign: 'center' }}>
                 <Typography variant="body1" color="text.secondary">
@@ -201,39 +207,34 @@ function App() {
                 </Typography>
               </Paper>
             )}
-
-            <Grid container spacing={3}>
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 3 }}>
               {files.map((file) => (
-                <Grid item xs={12} sm={6} md={4} key={file.key}>
-                  <Card>
-                    <CardContent>
-                      <Typography variant="h6" noWrap>
-                        {file.name}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        Last modified: {new Date(file.lastModified).toLocaleDateString()}
-                      </Typography>
-                    </CardContent>
-                    <CardActions>
-                      <Button 
-                        size="small" 
-                        onClick={() => extractDesign(file)}
-                        disabled={loading}
-                      >
-                        Convert to Code
-                      </Button>
-                    </CardActions>
-                  </Card>
-                </Grid>
+                <Card key={file.key}>
+                  <CardContent>
+                    <Typography variant="h6" noWrap>
+                      {file.name}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Last modified: {new Date(file.lastModified).toLocaleDateString()}
+                    </Typography>
+                  </CardContent>
+                  <CardActions>
+                    <Button 
+                      size="small" 
+                      onClick={() => extractDesign(file)}
+                      disabled={loading}
+                    >
+                      Convert to Code
+                    </Button>
+                  </CardActions>
+                </Card>
               ))}
-            </Grid>
-
+            </Box>
             {selectedFile && generatedCode && (
               <Paper sx={{ p: 3, mt: 3 }}>
                 <Typography variant="h6" gutterBottom>
                   Generated Code: {selectedFile.name}
                 </Typography>
-                
                 <Box sx={{ mb: 2 }}>
                   <Typography variant="body2" color="text.secondary" gutterBottom>
                     Platform: {platform.toUpperCase()}
@@ -252,7 +253,6 @@ function App() {
                     Close
                   </Button>
                 </Box>
-
                 <Box 
                   component="pre" 
                   sx={{ 
