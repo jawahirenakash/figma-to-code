@@ -57,6 +57,7 @@ function App() {
     const error = urlParams.get('error');
     
     if (token) {
+      console.log('Setting access token from URL');
       setAccessToken(token);
       window.history.replaceState({}, document.title, window.location.pathname);
     }
@@ -66,6 +67,11 @@ function App() {
       window.history.replaceState({}, document.title, window.location.pathname);
     }
   }, []);
+
+  // Debug: Log access token changes
+  useEffect(() => {
+    console.log('Access token changed:', accessToken ? 'Token present' : 'No token');
+  }, [accessToken]);
 
   const handleLogin = () => {
     window.location.href = `${BACKEND_URL}/api/figma/oauth/login`;
@@ -79,10 +85,22 @@ function App() {
       const response = await axios.post(`${BACKEND_URL}/api/figma/files`, {
         accessToken
       });
+      console.log('Figma files response:', response.data);
+      // The Figma API returns { files: [...] }
       setFiles(response.data.files || []);
     } catch (err) {
-      setError('Failed to fetch Figma files');
       console.error('Error fetching files:', err);
+      if (axios.isAxiosError(err)) {
+        if (err.response?.status === 401) {
+          setError('Access token expired. Please login again.');
+        } else if (err.response?.status === 403) {
+          setError('Insufficient permissions to access Figma files.');
+        } else {
+          setError(`Failed to fetch Figma files: ${err.response?.data?.error || err.message}`);
+        }
+      } else {
+        setError('Failed to fetch Figma files');
+      }
     } finally {
       setLoading(false);
     }
@@ -330,9 +348,18 @@ function App() {
             </Box>
             {files.length === 0 && !loading && (
               <Paper sx={{ p: 3, textAlign: 'center' }}>
-                <Typography variant="body1" color="text.secondary">
-                  No files found. Click "Refresh Files" to load your Figma files.
+                <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
+                  {accessToken ? 'No files found. Click "Refresh Files" to load your Figma files.' : 'Please login to access your Figma files.'}
                 </Typography>
+                {accessToken && (
+                  <Button 
+                    variant="contained" 
+                    onClick={fetchFiles}
+                    disabled={loading}
+                  >
+                    {loading ? <CircularProgress size={20} /> : 'Load My Files'}
+                  </Button>
+                )}
               </Paper>
             )}
             <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 3 }}>
