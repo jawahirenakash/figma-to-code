@@ -57,7 +57,15 @@ function App() {
     if (token) {
       console.log('Setting access token from URL');
       setAccessToken(token);
+      // Store token in localStorage for persistence
+      localStorage.setItem('figma_access_token', token);
       window.history.replaceState({}, document.title, window.location.pathname);
+    } else {
+      // Try to get token from localStorage on page load
+      const storedToken = localStorage.getItem('figma_access_token');
+      if (storedToken) {
+        setAccessToken(storedToken);
+      }
     }
     
     if (error) {
@@ -73,6 +81,13 @@ function App() {
 
   const handleLogin = () => {
     window.location.href = `${BACKEND_URL}/api/figma/oauth/login`;
+  };
+
+  const handleLogout = () => {
+    setAccessToken(null);
+    localStorage.removeItem('figma_access_token');
+    setGeneratedCode(null);
+    setError(null);
   };
 
   const extractDesign = async (file: FigmaFile) => {
@@ -226,6 +241,21 @@ function App() {
           </Box>
         ) : (
           <Box>
+            {/* Header with logout */}
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+              <Typography variant="h6" color="success.main">
+                ✅ Connected to Figma
+              </Typography>
+              <Button 
+                variant="outlined" 
+                color="secondary" 
+                onClick={handleLogout}
+                size="small"
+              >
+                Logout
+              </Button>
+            </Box>
+            
             {/* URL Input Section */}
             <Paper sx={{ p: 3, mb: 3 }}>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>

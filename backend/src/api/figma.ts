@@ -141,7 +141,7 @@ router.post('/extract', async (req, res) => {
   try {
     const response = await axios.get(`https://api.figma.com/v1/files/${fileKey}`, {
       headers: { 
-        'X-Figma-Token': accessToken,
+        'Authorization': `Bearer ${accessToken}`,
         'Content-Type': 'application/json'
       }
     });
