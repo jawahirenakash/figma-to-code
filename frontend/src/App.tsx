@@ -27,7 +27,9 @@ const theme = createTheme({
   },
 });
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
+// Backend URL configuration
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 
+  (window.location.hostname === 'localhost' ? 'http://localhost:4000' : 'https://figma-to-code-backend.onrender.com');
 
 interface FigmaFile {
   key: string;
@@ -78,6 +80,11 @@ function App() {
   useEffect(() => {
     console.log('Access token changed:', accessToken ? 'Token present' : 'No token');
   }, [accessToken]);
+
+  // Debug: Log backend URL
+  useEffect(() => {
+    console.log('Backend URL:', BACKEND_URL);
+  }, []);
 
   const handleLogin = () => {
     window.location.href = `${BACKEND_URL}/api/figma/oauth/login`;
