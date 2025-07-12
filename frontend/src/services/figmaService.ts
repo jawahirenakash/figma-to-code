@@ -293,6 +293,93 @@ class FigmaService {
     }
   }
 
+  // Get specific node data (for parsing individual views/frames)
+  async getNodeData(fileKey: string, nodeId: string): Promise<any> {
+    const cacheKey = this.getCacheKey(fileKey, `node-${nodeId}`);
+    const cached = this.getCachedData(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    try {
+      console.log(`Fetching specific node: ${nodeId} from file: ${fileKey}`);
+      
+      const response = await axios.get(`${FIGMA_API_BASE}/files/${fileKey}/nodes?ids=${nodeId}`, {
+        headers: this.getHeaders(),
+        timeout: 30000,
+        maxContentLength: 100 * 1024 * 1024, // 100MB limit for nodes
+        maxBodyLength: 100 * 1024 * 1024
+      });
+
+      const nodeData = response.data;
+      
+      if (!nodeData.nodes || !nodeData.nodes[nodeId]) {
+        throw new Error(`Node ${nodeId} not found in file ${fileKey}`);
+      }
+
+      const node = nodeData.nodes[nodeId];
+      console.log(`✅ Retrieved node: ${node.document?.name || 'Unnamed'} (${nodeId})`);
+
+      this.setCachedData(cacheKey, node);
+      return node;
+
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        if (error.response?.status === 404) {
+          throw new Error(`Node ${nodeId} not found in file ${fileKey}`);
+        }
+        if (error.response?.status === 413) {
+          throw new Error('Node data too large for processing');
+        }
+        throw new Error(`Figma API error: ${error.response?.data?.message || error.message}`);
+      }
+      throw error;
+    }
+  }
+
+  // Extract all views (frames) from a specific node
+  async extractViewsFromNode(fileKey: string, nodeId: string): Promise<{
+    nodeInfo: any;
+    views: Array<{
+      id: string;
+      name: string;
+      type: string;
+      children?: any[];
+    }>;
+  }> {
+    try {
+      const nodeData = await this.getNodeData(fileKey, nodeId);
+      const nodeDocument = nodeData.document;
+      
+      if (!nodeDocument) {
+        throw new Error('No document found in node data');
+      }
+
+      // Extract all top-level FRAME nodes (views)
+      const views = nodeDocument.children?.filter((child: any) => child.type === 'FRAME') || [];
+      
+      console.log(`📊 Found ${views.length} views in node: ${nodeDocument.name}`);
+      
+      return {
+        nodeInfo: {
+          id: nodeDocument.id,
+          name: nodeDocument.name,
+          type: nodeDocument.type
+        },
+        views: views.map((view: any) => ({
+          id: view.id,
+          name: view.name,
+          type: view.type,
+          children: view.children || []
+        }))
+      };
+
+    } catch (error) {
+      console.error('Error extracting views from node:', error);
+      throw error;
+    }
+  }
+
   // Get user's files
   async getUserFiles(): Promise<FigmaFile[]> {
     try {

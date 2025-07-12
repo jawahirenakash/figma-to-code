@@ -63,6 +63,15 @@ function App() {
   }>>([]);
   const [selectedPageId, setSelectedPageId] = useState<string>('');
   const [showPageSelector, setShowPageSelector] = useState(false);
+  const [nodeId, setNodeId] = useState<string>('');
+  const [showNodeInput, setShowNodeInput] = useState(false);
+  const [extractedViews, setExtractedViews] = useState<Array<{
+    id: string;
+    name: string;
+    type: string;
+    children?: any[];
+  }>>([]);
+  const [selectedViewId, setSelectedViewId] = useState<string>('');
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -116,6 +125,9 @@ function App() {
     setFileInfo(null);
     setAvailablePages([]);
     setSelectedPageId('');
+    setNodeId('');
+    setExtractedViews([]);
+    setSelectedViewId('');
   };
 
   const extractDesign = async (file: FigmaFile) => {
@@ -198,6 +210,140 @@ function App() {
       return `https://www.figma.com/file/${fileKey}`;
     }
     return designUrl;
+  };
+
+  // Parse specific node and extract all views
+  const handleNodeParse = async () => {
+    if (!nodeId.trim()) {
+      setError('Please enter a node ID');
+      return;
+    }
+
+    if (!figmaUrl.trim()) {
+      setError('Please enter a Figma URL first');
+      return;
+    }
+
+    const fileKey = extractFileKeyFromUrl(figmaUrl);
+    if (!fileKey) {
+      setError('Could not extract file key from URL');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    setExtractedViews([]);
+    setSelectedViewId('');
+
+    try {
+      console.log(`Parsing node: ${nodeId} from file: ${fileKey}`);
+      
+      // Extract views from the specific node
+      const result = await figmaService.extractViewsFromNode(fileKey, nodeId);
+      
+      console.log('Node parsing result:', result);
+      setExtractedViews(result.views);
+      
+      if (result.views.length === 0) {
+        setError(`No views found in node: ${result.nodeInfo.name}`);
+      } else {
+        console.log(`✅ Found ${result.views.length} views in node: ${result.nodeInfo.name}`);
+        // Auto-select first view
+        setSelectedViewId(result.views[0].id);
+      }
+
+    } catch (err) {
+      console.error('Node parsing error:', err);
+      if (axios.isAxiosError(err)) {
+        setError(`Failed to parse node: ${err.response?.data?.message || err.message}`);
+      } else {
+        setError(`Failed to parse node: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Generate code for a specific view
+  const handleViewCodeGeneration = async (viewId: string) => {
+    if (!viewId) {
+      setError('Please select a view to generate code for');
+      return;
+    }
+
+    const fileKey = extractFileKeyFromUrl(figmaUrl);
+    if (!fileKey) {
+      setError('Could not extract file key from URL');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      console.log(`Generating code for view: ${viewId}`);
+      
+      // Get the specific node data
+      const nodeData = await figmaService.getNodeData(fileKey, nodeId);
+      
+      // Find the specific view in the node
+      const view = extractedViews.find(v => v.id === viewId);
+      if (!view) {
+        throw new Error(`View ${viewId} not found`);
+      }
+
+      // Create a mock Figma data structure with just this view
+      const mockFigmaData = {
+        document: {
+          children: [{
+            id: nodeId,
+            name: nodeData.document.name,
+            type: 'CANVAS',
+            children: [view]
+          }]
+        }
+      };
+
+      console.log('Sending view data to backend for parsing...');
+      
+      // Send to backend for parsing
+      const parseResponse = await axios.post(`${BACKEND_URL}/api/figma/parse`, {
+        figmaData: mockFigmaData,
+        pageId: nodeId
+      });
+      
+      console.log('Parse response:', parseResponse.data);
+      
+      const parseData = parseResponse.data;
+      const irData = parseData.ir;
+      
+      // Send to backend for code generation
+      const codeResponse = await axios.post(`${BACKEND_URL}/api/figma/generate`, {
+        ir: irData,
+        platform
+      });
+      
+      console.log('Generate response:', codeResponse.data);
+      
+      setGeneratedCode(codeResponse.data);
+      
+      // Update file info
+      setFileInfo({
+        size: 'Node-specific',
+        nodeCount: parseData.nodeCount,
+        processingTime: parseData.processingTime
+      });
+
+    } catch (err) {
+      console.error('View code generation error:', err);
+      if (axios.isAxiosError(err)) {
+        setError(`Failed to generate code: ${err.response?.data?.message || err.message}`);
+      } else {
+        setError(`Failed to generate code: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
     const getAvailablePages = async (fileKey: string) => {
@@ -466,6 +612,39 @@ function App() {
               </Button>
             </Box>
             
+            {/* Platform Selector */}
+            <Paper sx={{ p: 2, mb: 3, bgcolor: 'primary.light', color: 'primary.contrastText' }}>
+              <Typography variant="h6" gutterBottom>
+                🎨 Target Platform
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                <Button
+                  variant={platform === 'react' ? 'contained' : 'outlined'}
+                  size="small"
+                  onClick={() => setPlatform('react')}
+                  sx={{ minWidth: 80 }}
+                >
+                  React
+                </Button>
+                <Button
+                  variant={platform === 'swiftui' ? 'contained' : 'outlined'}
+                  size="small"
+                  onClick={() => setPlatform('swiftui')}
+                  sx={{ minWidth: 80 }}
+                >
+                  SwiftUI
+                </Button>
+                <Button
+                  variant={platform === 'jetpack' ? 'contained' : 'outlined'}
+                  size="small"
+                  onClick={() => setPlatform('jetpack')}
+                  sx={{ minWidth: 80 }}
+                >
+                  Jetpack
+                </Button>
+              </Box>
+            </Paper>
+
             {/* File Information Display */}
             {fileInfo && (
               <Paper sx={{ p: 2, mb: 3, bgcolor: 'success.light', color: 'success.contrastText' }}>
@@ -564,6 +743,91 @@ function App() {
                       {loading ? <CircularProgress size={20} /> : 'Convert'}
                     </Button>
                   </Box>
+                </Box>
+              )}
+            </Paper>
+            
+            {/* Node Parsing Section */}
+            <Paper sx={{ p: 3, mb: 3, bgcolor: 'warning.light' }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                <Typography variant="h6">
+                  🎯 Parse Specific Node
+                </Typography>
+                <Button 
+                  variant="outlined" 
+                  size="small"
+                  onClick={() => setShowNodeInput(!showNodeInput)}
+                >
+                  {showNodeInput ? 'Hide' : 'Show'} Node Parser
+                </Button>
+              </Box>
+              
+              {showNodeInput && (
+                <Box>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    Parse a specific Figma node (like page 8182:39931) and extract all views for code generation.
+                    <br />
+                    <strong>Example:</strong> Enter node ID like "8182:39931" to parse the "⚪️⚫️ Light & Dark Mode" page.
+                  </Typography>
+                  <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', mb: 2 }}>
+                    <TextField
+                      label="Node ID"
+                      placeholder="8182:39931"
+                      value={nodeId}
+                      onChange={(e) => setNodeId(e.target.value)}
+                      disabled={loading}
+                      size="small"
+                      sx={{ minWidth: 200 }}
+                    />
+                    <Button 
+                      variant="contained" 
+                      onClick={handleNodeParse}
+                      disabled={loading || !nodeId.trim() || !figmaUrl.trim()}
+                      sx={{ minWidth: 120 }}
+                    >
+                      {loading ? <CircularProgress size={20} /> : 'Parse Node'}
+                    </Button>
+                  </Box>
+                  
+                  {/* Extracted Views Display */}
+                  {extractedViews.length > 0 && (
+                    <Box sx={{ mt: 3 }}>
+                      <Typography variant="h6" gutterBottom>
+                        📊 Found {extractedViews.length} Views
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                        Select a view to generate code for:
+                      </Typography>
+                      <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 2 }}>
+                        {extractedViews.map((view) => (
+                          <Button
+                            key={view.id}
+                            variant={selectedViewId === view.id ? 'contained' : 'outlined'}
+                            size="small"
+                            onClick={() => setSelectedViewId(view.id)}
+                            sx={{ minWidth: 120 }}
+                          >
+                            {view.name}
+                          </Button>
+                        ))}
+                      </Box>
+                      {selectedViewId && (
+                        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                          <Typography variant="body2">
+                            Selected: {extractedViews.find(v => v.id === selectedViewId)?.name}
+                          </Typography>
+                          <Button 
+                            variant="contained" 
+                            onClick={() => handleViewCodeGeneration(selectedViewId)}
+                            disabled={loading}
+                            size="small"
+                          >
+                            {loading ? <CircularProgress size={16} /> : 'Generate Code'}
+                          </Button>
+                        </Box>
+                      )}
+                    </Box>
+                  )}
                 </Box>
               )}
             </Paper>
