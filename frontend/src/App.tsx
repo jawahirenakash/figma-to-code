@@ -201,24 +201,51 @@ function App() {
   };
 
   const extractFileKeyFromUrl = (url: string): string | null => {
+    console.log('Extracting file key from URL:', url);
+    
     // Handle file URLs: https://www.figma.com/file/KEY/...
     const fileMatch = url.match(/figma\.com\/file\/([a-zA-Z0-9]+)/);
     if (fileMatch) {
+      console.log('Found file key from file URL:', fileMatch[1]);
       return fileMatch[1];
     }
     
     // Handle design URLs: https://www.figma.com/design/KEY/...
     const designMatch = url.match(/figma\.com\/design\/([a-zA-Z0-9]+)/);
     if (designMatch) {
+      console.log('Found file key from design URL:', designMatch[1]);
       return designMatch[1];
     }
     
+    // Handle prototype URLs: https://www.figma.com/proto/KEY/...
+    const protoMatch = url.match(/figma\.com\/proto\/([a-zA-Z0-9]+)/);
+    if (protoMatch) {
+      console.log('Found file key from prototype URL:', protoMatch[1]);
+      return protoMatch[1];
+    }
+    
+    // Handle community URLs: https://www.figma.com/community/file/KEY/...
+    const communityMatch = url.match(/figma\.com\/community\/file\/([a-zA-Z0-9]+)/);
+    if (communityMatch) {
+      console.log('Found file key from community URL:', communityMatch[1]);
+      return communityMatch[1];
+    }
+    
+    // Handle just the file key if someone pastes only that
+    const keyOnlyMatch = url.match(/^([a-zA-Z0-9]{22,})$|^([a-zA-Z0-9]{22,})/);
+    if (keyOnlyMatch) {
+      const key = keyOnlyMatch[1] || keyOnlyMatch[2];
+      console.log('Found file key from key-only input:', key);
+      return key;
+    }
+    
+    console.log('No file key found in URL');
     return null;
   };
 
   const extractNodeIdFromUrl = (url: string): string | null => {
     // Extract node-id from URL parameters
-    const nodeMatch = url.match(/node-id=([a-zA-Z0-9-]+)/);
+    const nodeMatch = url.match(/node-id=([a-zA-Z0-9-:]+)/);
     if (nodeMatch) {
       return nodeMatch[1];
     }
@@ -227,7 +254,9 @@ function App() {
 
   const validateFigmaUrl = (url: string): boolean => {
     const fileKey = extractFileKeyFromUrl(url);
-    return fileKey !== null;
+    const isValid = fileKey !== null;
+    console.log('URL validation result:', isValid, 'for URL:', url);
+    return isValid;
   };
 
   const convertDesignUrlToFileUrl = (designUrl: string): string => {
@@ -251,7 +280,7 @@ function App() {
       // Use provided Figma URL
       const extractedFileKey = extractFileKeyFromUrl(figmaUrl);
       if (!extractedFileKey) {
-        setError('Could not extract file key from URL. Please provide a valid Figma URL.');
+        setError(`Could not extract file key from URL: "${figmaUrl}"\n\nPlease provide a valid Figma URL or leave the URL field empty to use the default file.`);
         return;
       }
       fileKey = extractedFileKey;
@@ -304,7 +333,7 @@ function App() {
 
     const fileKey = extractFileKeyFromUrl(figmaUrl);
     if (!fileKey) {
-      setError('Could not extract file key from URL');
+      setError(`Could not extract file key from URL: "${figmaUrl}"\n\nPlease provide a valid Figma URL or use the "Parse Node" feature with a node ID.`);
       return;
     }
 
@@ -497,13 +526,13 @@ function App() {
     }
 
     if (!validateFigmaUrl(figmaUrl)) {
-      setError('Invalid Figma URL. Please use a URL like: https://www.figma.com/file/... or https://www.figma.com/design/...');
+      setError(`Invalid Figma URL: "${figmaUrl}"\n\nPlease use one of these formats:\n• https://www.figma.com/file/KEY/...\n• https://www.figma.com/design/KEY/...\n• https://www.figma.com/proto/KEY/...\n• https://www.figma.com/community/file/KEY/...\n• Or just paste the file key (22+ characters)`);
       return;
     }
 
     const fileKey = extractFileKeyFromUrl(figmaUrl);
     if (!fileKey) {
-      setError('Could not extract file key from URL');
+      setError(`Could not extract file key from URL: "${figmaUrl}"\n\nPlease check that the URL contains a valid Figma file key.`);
       return;
     }
 
