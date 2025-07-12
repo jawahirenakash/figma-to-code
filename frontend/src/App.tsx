@@ -196,13 +196,23 @@ function App() {
 
   const getAvailablePages = async (fileKey: string) => {
     try {
-      console.log('Getting available pages for file:', fileKey);
-      const response = await axios.post(`${BACKEND_URL}/api/figma/pages`, {
+      console.log('Getting file info for:', fileKey);
+      
+      // Try the new file-info endpoint first
+      const response = await axios.post(`${BACKEND_URL}/api/figma/file-info`, {
         accessToken,
         fileKey
       });
       
-      console.log('Pages response:', response.data);
+      console.log('File info response:', response.data);
+      
+      // Check if file is extremely large
+      const fileSize = parseFloat(response.data.fileSize || '0');
+      if (fileSize > 100) {
+        setError(`⚠️ Large File Detected: ${response.data.fileSize} MB\n\nThis file is very large and may cause performance issues. Consider:\n• Working with individual pages\n• Breaking the file into smaller components\n• Using the web interface for better handling`);
+        return [];
+      }
+      
       setAvailablePages(response.data.pages || []);
       
       if (response.data.pages && response.data.pages.length > 0) {
@@ -213,10 +223,27 @@ function App() {
         }
       }
       
+      // Show file info
+      setFileInfo({
+        size: response.data.fileSize,
+        nodeCount: response.data.totalPages, // Using pages as node count for now
+        processingTime: 0
+      });
+      
       return response.data.pages;
     } catch (err) {
-      console.error('Failed to get pages:', err);
-      setError('Failed to get available pages from Figma file');
+      console.error('Failed to get file info:', err);
+      
+      if (axios.isAxiosError(err)) {
+        if (err.response?.status === 413) {
+          const errorData = err.response.data;
+          setError(`🚨 Extremely Large File: ${errorData.estimatedSize || 'Unknown size'}\n\n${errorData.details}\n\n${errorData.suggestion}`);
+        } else {
+          setError(`Failed to get file info: ${err.response?.data?.error || err.message}`);
+        }
+      } else {
+        setError('Failed to get file information');
+      }
       return [];
     }
   };

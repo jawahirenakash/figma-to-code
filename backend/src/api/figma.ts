@@ -146,9 +146,9 @@ router.post('/pages', async (req, res) => {
         'Authorization': `Bearer ${accessToken}`,
         'Content-Type': 'application/json'
       },
-      timeout: 15000,
-      maxContentLength: 50 * 1024 * 1024, // 50MB for page list
-      maxBodyLength: 50 * 1024 * 1024
+      timeout: 30000, // Increased timeout for large files
+      maxContentLength: 200 * 1024 * 1024, // 200MB for page list
+      maxBodyLength: 200 * 1024 * 1024
     });
     
     const figmaData = response.data;
@@ -175,6 +175,13 @@ router.post('/pages', async (req, res) => {
         res.status(404).json({ error: 'Figma file not found or access denied' });
       } else if (err.response?.status === 401) {
         res.status(401).json({ error: 'Invalid or expired access token' });
+      } else if (err.message?.includes('maxContentLength')) {
+        res.status(413).json({ 
+          error: 'Figma file too large for page listing',
+          details: 'This Figma file is extremely large. Even the page listing exceeds the size limit.',
+          suggestion: 'Try accessing the file directly in Figma and work with individual pages.',
+          fileSize: 'Exceeds 200 MB limit'
+        });
       } else {
         res.status(err.response?.status || 500).json({ 
           error: 'Failed to get pages',
@@ -183,6 +190,78 @@ router.post('/pages', async (req, res) => {
       }
     } else {
       res.status(500).json({ error: 'Failed to get pages' });
+    }
+  }
+});
+
+// Get file size and basic info without parsing
+router.post('/file-info', async (req, res) => {
+  const { accessToken, fileKey } = req.body;
+  
+  if (!accessToken || !fileKey) {
+    res.status(400).json({ error: 'Access token and file key are required' });
+    return;
+  }
+
+  try {
+    console.log(`Getting file info for: ${fileKey}`);
+    
+    const response = await axios.get(`https://api.figma.com/v1/files/${fileKey}`, {
+      headers: { 
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      timeout: 30000,
+      maxContentLength: 200 * 1024 * 1024, // 200MB limit
+      maxBodyLength: 200 * 1024 * 1024
+    });
+    
+    const figmaData = response.data;
+    const responseSize = JSON.stringify(response.data).length;
+    const responseSizeMB = (responseSize / 1024 / 1024).toFixed(2);
+    
+    // Extract basic info without parsing
+    const fileInfo = {
+      name: figmaData.name || 'Unknown',
+      lastModified: figmaData.lastModified || 'Unknown',
+      version: figmaData.version || 'Unknown',
+      thumbnailUrl: figmaData.thumbnailUrl || null,
+      fileSize: responseSizeMB,
+      totalPages: figmaData.document?.children?.length || 0,
+      pages: figmaData.document?.children?.map((page: any) => ({
+        id: page.id,
+        name: page.name,
+        type: page.type
+      })) || []
+    };
+    
+    console.log(`File info: ${fileInfo.name}, ${fileInfo.totalPages} pages, ${fileInfo.fileSize} MB`);
+    
+    res.json(fileInfo);
+    
+  } catch (err) {
+    console.error('Failed to get file info:', err);
+    
+    if (axios.isAxiosError(err)) {
+      if (err.response?.status === 404) {
+        res.status(404).json({ error: 'Figma file not found or access denied' });
+      } else if (err.response?.status === 401) {
+        res.status(401).json({ error: 'Invalid or expired access token' });
+      } else if (err.message?.includes('maxContentLength')) {
+        res.status(413).json({ 
+          error: 'Figma file extremely large',
+          details: `File size exceeds 200 MB limit. This is a very large Figma file.`,
+          suggestion: 'Consider breaking the file into smaller components or working with individual pages.',
+          estimatedSize: '> 200 MB'
+        });
+      } else {
+        res.status(err.response?.status || 500).json({ 
+          error: 'Failed to get file info',
+          details: err.response?.data?.message || err.message
+        });
+      }
+    } else {
+      res.status(500).json({ error: 'Failed to get file info' });
     }
   }
 });
