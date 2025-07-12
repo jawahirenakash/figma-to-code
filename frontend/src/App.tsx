@@ -50,6 +50,11 @@ function App() {
   const [platform, setPlatform] = useState<'swiftui' | 'react' | 'jetpack'>('react');
   const [figmaUrl, setFigmaUrl] = useState<string>('');
   const [showUrlInput, setShowUrlInput] = useState(false);
+  const [fileInfo, setFileInfo] = useState<{
+    size?: string;
+    nodeCount?: number;
+    processingTime?: number;
+  } | null>(null);
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -95,6 +100,7 @@ function App() {
     localStorage.removeItem('figma_access_token');
     setGeneratedCode(null);
     setError(null);
+    setFileInfo(null);
   };
 
   const extractDesign = async (file: FigmaFile) => {
@@ -204,8 +210,25 @@ function App() {
       
       console.log('Extract response:', response.data);
       
+      // Handle new response format with file size info
+      const extractData = response.data;
+      const irData = extractData.ir || extractData; // Backward compatibility
+      
+      // Display file size information
+      if (extractData.fileSize) {
+        console.log(`File size: ${extractData.fileSize} MB`);
+        console.log(`Node count: ${extractData.nodeCount}`);
+        console.log(`Processing time: ${extractData.processingTime}ms`);
+        
+        setFileInfo({
+          size: extractData.fileSize,
+          nodeCount: extractData.nodeCount,
+          processingTime: extractData.processingTime
+        });
+      }
+      
       const codeResponse = await axios.post(`${BACKEND_URL}/api/figma/generate`, {
-        ir: response.data,
+        ir: irData,
         platform
       });
       
@@ -218,7 +241,17 @@ function App() {
         console.error('Response status:', err.response?.status);
         console.error('Response data:', err.response?.data);
         console.error('Response headers:', err.response?.headers);
-        setError(`Network error: ${err.response?.status} - ${err.response?.data?.error || err.message}`);
+        
+        // Handle specific error cases
+        if (err.response?.status === 413) {
+          const errorData = err.response.data;
+          const errorMessage = `${errorData.error}: ${errorData.details}`;
+          const suggestion = errorData.suggestion ? `\n\nSuggestion: ${errorData.suggestion}` : '';
+          const fileSizeInfo = errorData.fileSize ? `\n\nFile Size: ${errorData.fileSize} MB` : '';
+          setError(errorMessage + suggestion + fileSizeInfo);
+        } else {
+          setError(`Network error: ${err.response?.status} - ${err.response?.data?.error || err.message}`);
+        }
       } else {
         setError('Failed to extract design or generate code. Make sure you have access to this file.');
       }
@@ -277,6 +310,26 @@ function App() {
               </Button>
             </Box>
             
+            {/* File Information Display */}
+            {fileInfo && (
+              <Paper sx={{ p: 2, mb: 3, bgcolor: 'success.light', color: 'success.contrastText' }}>
+                <Typography variant="h6" gutterBottom>
+                  📊 File Information
+                </Typography>
+                <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+                  <Typography variant="body2">
+                    <strong>File Size:</strong> {fileInfo.size} MB
+                  </Typography>
+                  <Typography variant="body2">
+                    <strong>Nodes Processed:</strong> {fileInfo.nodeCount}
+                  </Typography>
+                  <Typography variant="body2">
+                    <strong>Processing Time:</strong> {fileInfo.processingTime}ms
+                  </Typography>
+                </Box>
+              </Paper>
+            )}
+            
             {/* URL Input Section */}
             <Paper sx={{ p: 3, mb: 3 }}>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
@@ -297,6 +350,8 @@ function App() {
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                     Enter a Figma file URL or design URL to convert it to code. 
                     Supports both <code>figma.com/file/...</code> and <code>figma.com/design/...</code> URLs.
+                    <br />
+                    <strong>Note:</strong> Files larger than 100MB may not process correctly.
                   </Typography>
                   <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
                     <TextField

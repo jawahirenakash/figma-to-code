@@ -151,11 +151,26 @@ router.post('/extract', async (req, res) => {
         'Content-Type': 'application/json'
       },
       timeout: timeout,
-      maxContentLength: 50 * 1024 * 1024, // 50MB limit
-      maxBodyLength: 50 * 1024 * 1024
+      maxContentLength: 100 * 1024 * 1024, // 100MB limit
+      maxBodyLength: 100 * 1024 * 1024
     });
     
     console.log(`Figma API response received in ${Date.now() - startTime}ms`);
+    
+    // Check response size
+    const responseSize = JSON.stringify(response.data).length;
+    const responseSizeMB = (responseSize / 1024 / 1024).toFixed(2);
+    console.log(`Figma response size: ${responseSizeMB} MB`);
+    
+    if (responseSize > 100 * 1024 * 1024) {
+      res.status(413).json({ 
+        error: 'Figma file too large',
+        details: `File size (${responseSizeMB} MB) exceeds the 100 MB limit.`,
+        suggestion: 'Try duplicating the file and removing unnecessary elements to reduce its size.',
+        fileSize: responseSizeMB
+      });
+      return;
+    }
     
     // Memory optimization: process in chunks if needed
     const figmaData = response.data;
@@ -170,7 +185,13 @@ router.post('/extract', async (req, res) => {
       console.log('Garbage collection performed');
     }
     
-    res.json(ir);
+    // Return file size information along with the IR data
+    res.json({
+      ir: ir,
+      fileSize: responseSizeMB,
+      nodeCount: ir.length,
+      processingTime: Date.now() - startTime
+    });
   } catch (err) {
     console.error('Failed to extract Figma file:', err);
     
@@ -179,6 +200,12 @@ router.post('/extract', async (req, res) => {
         res.status(404).json({ error: 'Figma file not found or access denied' });
       } else if (err.response?.status === 401) {
         res.status(401).json({ error: 'Invalid or expired access token' });
+      } else if (err.message?.includes('maxContentLength')) {
+        res.status(413).json({ 
+          error: 'Figma file too large',
+          details: 'This Figma file is too large to process. Please try with a smaller file or contact support for large file processing.',
+          suggestion: 'Try duplicating the file and removing unnecessary elements to reduce its size.'
+        });
       } else {
         res.status(err.response?.status || 500).json({ 
           error: 'Failed to extract Figma file',
