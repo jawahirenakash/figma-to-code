@@ -129,9 +129,67 @@ router.get('/oauth/callback', async (req, res) => {
   }
 });
 
-// Extract IR from Figma file
-router.post('/extract', async (req, res) => {
+// Get available pages from Figma file
+router.post('/pages', async (req, res) => {
   const { accessToken, fileKey } = req.body;
+  
+  if (!accessToken || !fileKey) {
+    res.status(400).json({ error: 'Access token and file key are required' });
+    return;
+  }
+
+  try {
+    console.log(`Getting pages for file: ${fileKey}`);
+    
+    const response = await axios.get(`https://api.figma.com/v1/files/${fileKey}`, {
+      headers: { 
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      timeout: 15000,
+      maxContentLength: 50 * 1024 * 1024, // 50MB for page list
+      maxBodyLength: 50 * 1024 * 1024
+    });
+    
+    const figmaData = response.data;
+    const pages = figmaData.document?.children || [];
+    
+    const pageList = pages.map((page: any) => ({
+      id: page.id,
+      name: page.name,
+      type: page.type
+    }));
+    
+    console.log(`Found ${pageList.length} pages in file`);
+    
+    res.json({
+      pages: pageList,
+      totalPages: pageList.length
+    });
+    
+  } catch (err) {
+    console.error('Failed to get pages:', err);
+    
+    if (axios.isAxiosError(err)) {
+      if (err.response?.status === 404) {
+        res.status(404).json({ error: 'Figma file not found or access denied' });
+      } else if (err.response?.status === 401) {
+        res.status(401).json({ error: 'Invalid or expired access token' });
+      } else {
+        res.status(err.response?.status || 500).json({ 
+          error: 'Failed to get pages',
+          details: err.response?.data?.message || err.message
+        });
+      }
+    } else {
+      res.status(500).json({ error: 'Failed to get pages' });
+    }
+  }
+});
+
+// Extract IR from Figma file (with optional page selection)
+router.post('/extract', async (req, res) => {
+  const { accessToken, fileKey, pageId } = req.body;
   
   if (!accessToken || !fileKey) {
     res.status(400).json({ error: 'Access token and file key are required' });
@@ -177,8 +235,10 @@ router.post('/extract', async (req, res) => {
     const figmaData = response.data;
     console.log(`Processing Figma data with ${figmaData.document?.children?.length || 0} root children`);
     
-    const ir = parseFigmaToIR(figmaData);
-    console.log(`Parsed ${ir.length} IR nodes in ${Date.now() - startTime}ms`);
+    // Parse with optional page selection
+    const ir = parseFigmaToIR(figmaData, pageId);
+    const pageInfo = pageId ? ` (Page ID: ${pageId})` : ' (All pages)';
+    console.log(`Parsed ${ir.length} IR nodes${pageInfo} in ${Date.now() - startTime}ms`);
     
     // Force garbage collection if available
     if (global.gc) {

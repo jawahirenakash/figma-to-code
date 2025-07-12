@@ -55,6 +55,13 @@ function App() {
     nodeCount?: number;
     processingTime?: number;
   } | null>(null);
+  const [availablePages, setAvailablePages] = useState<Array<{
+    id: string;
+    name: string;
+    type: string;
+  }>>([]);
+  const [selectedPageId, setSelectedPageId] = useState<string>('');
+  const [showPageSelector, setShowPageSelector] = useState(false);
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -101,6 +108,8 @@ function App() {
     setGeneratedCode(null);
     setError(null);
     setFileInfo(null);
+    setAvailablePages([]);
+    setSelectedPageId('');
   };
 
   const extractDesign = async (file: FigmaFile) => {
@@ -163,6 +172,15 @@ function App() {
     return null;
   };
 
+  const extractNodeIdFromUrl = (url: string): string | null => {
+    // Extract node-id from URL parameters
+    const nodeMatch = url.match(/node-id=([a-zA-Z0-9-]+)/);
+    if (nodeMatch) {
+      return nodeMatch[1];
+    }
+    return null;
+  };
+
   const validateFigmaUrl = (url: string): boolean => {
     const fileKey = extractFileKeyFromUrl(url);
     return fileKey !== null;
@@ -174,6 +192,33 @@ function App() {
       return `https://www.figma.com/file/${fileKey}`;
     }
     return designUrl;
+  };
+
+  const getAvailablePages = async (fileKey: string) => {
+    try {
+      console.log('Getting available pages for file:', fileKey);
+      const response = await axios.post(`${BACKEND_URL}/api/figma/pages`, {
+        accessToken,
+        fileKey
+      });
+      
+      console.log('Pages response:', response.data);
+      setAvailablePages(response.data.pages || []);
+      
+      if (response.data.pages && response.data.pages.length > 0) {
+        setShowPageSelector(true);
+        // Auto-select first page if none selected
+        if (!selectedPageId) {
+          setSelectedPageId(response.data.pages[0].id);
+        }
+      }
+      
+      return response.data.pages;
+    } catch (err) {
+      console.error('Failed to get pages:', err);
+      setError('Failed to get available pages from Figma file');
+      return [];
+    }
   };
 
   const handleUrlSubmit = async () => {
@@ -193,19 +238,41 @@ function App() {
       return;
     }
 
+    // Check if URL contains a specific node ID
+    const nodeId = extractNodeIdFromUrl(figmaUrl);
+    if (nodeId) {
+      console.log('Found node ID in URL:', nodeId);
+      // For now, we'll use this as a hint but still show page selector
+    }
+
     setLoading(true);
     setError(null);
+    setFileInfo(null);
     
     try {
+      // First, get available pages
+      const pages = await getAvailablePages(fileKey);
+      
+      if (pages.length === 0) {
+        setError('No pages found in this Figma file');
+        setLoading(false);
+        return;
+      }
+      
       console.log('Making request to:', `${BACKEND_URL}/api/figma/extract`);
-      console.log('With data:', { accessToken: accessToken ? 'present' : 'missing', fileKey });
+      console.log('With data:', { 
+        accessToken: accessToken ? 'present' : 'missing', 
+        fileKey,
+        pageId: selectedPageId || 'all pages'
+      });
       
       // Convert design URL to file URL if needed
       const fileUrl = figmaUrl.includes('/design/') ? convertDesignUrlToFileUrl(figmaUrl) : figmaUrl;
       
       const response = await axios.post(`${BACKEND_URL}/api/figma/extract`, {
         accessToken,
-        fileKey
+        fileKey,
+        pageId: selectedPageId || undefined // Only send if a specific page is selected
       });
       
       console.log('Extract response:', response.data);
@@ -328,6 +395,42 @@ function App() {
                     <strong>Processing Time:</strong> {fileInfo.processingTime}ms
                   </Typography>
                 </Box>
+              </Paper>
+            )}
+            
+            {/* Page Selector */}
+            {showPageSelector && availablePages.length > 0 && (
+              <Paper sx={{ p: 3, mb: 3, bgcolor: 'info.light' }}>
+                <Typography variant="h6" gutterBottom>
+                  📄 Select Page to Convert
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  Choose which page from your Figma file to convert to code. This will reduce processing time and memory usage.
+                </Typography>
+                <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+                  {availablePages.map((page) => (
+                    <Button
+                      key={page.id}
+                      variant={selectedPageId === page.id ? 'contained' : 'outlined'}
+                      size="small"
+                      onClick={() => setSelectedPageId(page.id)}
+                      sx={{ minWidth: 120 }}
+                    >
+                      {page.name}
+                    </Button>
+                  ))}
+                  <Button
+                    variant={selectedPageId === '' ? 'contained' : 'outlined'}
+                    size="small"
+                    onClick={() => setSelectedPageId('')}
+                    sx={{ minWidth: 120 }}
+                  >
+                    All Pages
+                  </Button>
+                </Box>
+                <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                  Selected: {selectedPageId ? availablePages.find(p => p.id === selectedPageId)?.name : 'All Pages'}
+                </Typography>
               </Paper>
             )}
             

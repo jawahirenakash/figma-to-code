@@ -58,7 +58,7 @@ export interface FigmaDocument {
   styles: Record<string, any>;
 }
 
-export function parseFigmaToIR(figmaData: FigmaDocument): IRNode[] {
+export function parseFigmaToIR(figmaData: FigmaDocument, pageId?: string): IRNode[] {
   const irNodes: IRNode[] = [];
   let nodeCount = 0;
   const MAX_NODES = 1000; // Limit to prevent memory issues
@@ -147,9 +147,33 @@ export function parseFigmaToIR(figmaData: FigmaDocument): IRNode[] {
 
   // Parse the document
   if (figmaData.document) {
-    const rootNode = parseNode(figmaData.document);
-    if (rootNode) {
-      irNodes.push(rootNode);
+    if (pageId) {
+      // Parse specific page
+      const targetPage = figmaData.document.children?.find(page => page.id === pageId);
+      if (targetPage) {
+        console.log(`Parsing specific page: ${targetPage.name} (${pageId})`);
+        const pageNode = parseNode(targetPage);
+        if (pageNode) {
+          irNodes.push(pageNode);
+        }
+      } else {
+        console.warn(`Page with ID ${pageId} not found`);
+        // Fallback to first page
+        const firstPage = figmaData.document.children?.[0];
+        if (firstPage) {
+          console.log(`Falling back to first page: ${firstPage.name}`);
+          const pageNode = parseNode(firstPage);
+          if (pageNode) {
+            irNodes.push(pageNode);
+          }
+        }
+      }
+    } else {
+      // Parse all pages (original behavior)
+      const rootNode = parseNode(figmaData.document);
+      if (rootNode) {
+        irNodes.push(rootNode);
+      }
     }
   }
 
