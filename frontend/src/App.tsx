@@ -245,15 +245,20 @@ function App() {
       return;
     }
 
-    if (!figmaUrl.trim()) {
-      setError('Please enter a Figma URL first');
-      return;
-    }
-
-    const fileKey = extractFileKeyFromUrl(figmaUrl);
-    if (!fileKey) {
-      setError('Could not extract file key from URL');
-      return;
+    let fileKey: string;
+    
+    if (figmaUrl.trim()) {
+      // Use provided Figma URL
+      const extractedFileKey = extractFileKeyFromUrl(figmaUrl);
+      if (!extractedFileKey) {
+        setError('Could not extract file key from URL. Please provide a valid Figma URL.');
+        return;
+      }
+      fileKey = extractedFileKey;
+    } else {
+      // Use default file key for testing (the one from your example)
+      fileKey = 'QX6UcGsyTxi5UxVJFDX3BJ';
+      console.log('Using default file key for node parsing:', fileKey);
     }
 
     setLoading(true);
@@ -794,6 +799,8 @@ function App() {
                     Parse a specific Figma node (like page 8182:39931) and extract all views with nested children for comprehensive code generation.
                     <br />
                     <strong>Example:</strong> Enter node ID like "8182:39931" to parse the "⚪️⚫️ Light & Dark Mode" page with all nested elements.
+                    <br />
+                    <strong>Note:</strong> Figma URL is optional - if not provided, will use the default file for testing.
                   </Typography>
                   <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', mb: 2 }}>
                     <TextField
@@ -808,7 +815,7 @@ function App() {
                     <Button 
                       variant="contained" 
                       onClick={handleNodeParse}
-                      disabled={loading || !nodeId.trim() || !figmaUrl.trim()}
+                      disabled={loading || !nodeId.trim()}
                       sx={{ minWidth: 120 }}
                     >
                       {loading ? <CircularProgress size={20} /> : 'Parse Node'}
