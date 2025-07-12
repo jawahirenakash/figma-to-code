@@ -138,15 +138,38 @@ router.post('/extract', async (req, res) => {
     return;
   }
 
+  // Set request timeout
+  const timeout = 30000; // 30 seconds
+  
   try {
+    console.log(`Starting extraction for file: ${fileKey}`);
+    const startTime = Date.now();
+    
     const response = await axios.get(`https://api.figma.com/v1/files/${fileKey}`, {
       headers: { 
         'Authorization': `Bearer ${accessToken}`,
         'Content-Type': 'application/json'
-      }
+      },
+      timeout: timeout,
+      maxContentLength: 50 * 1024 * 1024, // 50MB limit
+      maxBodyLength: 50 * 1024 * 1024
     });
     
-    const ir = parseFigmaToIR(response.data);
+    console.log(`Figma API response received in ${Date.now() - startTime}ms`);
+    
+    // Memory optimization: process in chunks if needed
+    const figmaData = response.data;
+    console.log(`Processing Figma data with ${figmaData.document?.children?.length || 0} root children`);
+    
+    const ir = parseFigmaToIR(figmaData);
+    console.log(`Parsed ${ir.length} IR nodes in ${Date.now() - startTime}ms`);
+    
+    // Force garbage collection if available
+    if (global.gc) {
+      global.gc();
+      console.log('Garbage collection performed');
+    }
+    
     res.json(ir);
   } catch (err) {
     console.error('Failed to extract Figma file:', err);

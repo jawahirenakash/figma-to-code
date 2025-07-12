@@ -60,8 +60,15 @@ export interface FigmaDocument {
 
 export function parseFigmaToIR(figmaData: FigmaDocument): IRNode[] {
   const irNodes: IRNode[] = [];
+  let nodeCount = 0;
+  const MAX_NODES = 1000; // Limit to prevent memory issues
   
   function parseNode(node: FigmaNode, parentX: number = 0, parentY: number = 0): IRNode | null {
+    // Memory protection: limit number of nodes processed
+    if (nodeCount++ > MAX_NODES) {
+      console.warn('Reached maximum node limit, truncating parse');
+      return null;
+    }
     const irNode: IRNode = {
       id: node.id,
       type: node.type,

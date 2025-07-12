@@ -8,6 +8,24 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 4000;
 
+// Memory optimization settings
+app.use(express.json({ limit: '10mb' })); // Limit request body size
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Add memory monitoring
+const logMemoryUsage = () => {
+  const used = process.memoryUsage();
+  console.log('Memory usage:', {
+    rss: `${Math.round(used.rss / 1024 / 1024 * 100) / 100} MB`,
+    heapTotal: `${Math.round(used.heapTotal / 1024 / 1024 * 100) / 100} MB`,
+    heapUsed: `${Math.round(used.heapUsed / 1024 / 1024 * 100) / 100} MB`,
+    external: `${Math.round(used.external / 1024 / 1024 * 100) / 100} MB`
+  });
+};
+
+// Log memory usage every 30 seconds
+setInterval(logMemoryUsage, 30000);
+
 // CORS configuration
 const allowedOrigins = [
   'http://localhost:5173', // Local development
