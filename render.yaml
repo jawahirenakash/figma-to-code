@@ -8,6 +8,8 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      - key: FRONTEND_URL
+        value: https://figma-to-code-pi.vercel.app
       - key: FIGMA_CLIENT_ID
         sync: false
       - key: FIGMA_CLIENT_SECRET

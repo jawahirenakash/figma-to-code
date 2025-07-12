@@ -8,8 +8,28 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 4000;
 
+// CORS configuration
+const allowedOrigins = [
+  'http://localhost:5173', // Local development
+  'http://localhost:3000', // Alternative local port
+  'https://figma-to-code-pi.vercel.app', // Vercel frontend
+  'https://figma-to-code.vercel.app', // Alternative Vercel domain
+];
+
+// Add FRONTEND_URL if it exists
+if (process.env.FRONTEND_URL) {
+  allowedOrigins.push(process.env.FRONTEND_URL);
+}
+
+const corsOptions = {
+  origin: allowedOrigins,
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+};
+
 // Middleware
-app.use(cors());
+app.use(cors(corsOptions));
 app.use(express.json());
 
 // Health check endpoint
