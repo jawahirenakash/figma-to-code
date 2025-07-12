@@ -34,6 +34,109 @@ const styles = \`
   return code;
 }
 
+export function generateReactWithComponents(irNodes: IRNode[]): {
+  mainCode: string;
+  components: Array<{ name: string; code: string; type: string }>;
+} {
+  if (!irNodes || irNodes.length === 0) {
+    return {
+      mainCode: '// No design elements found',
+      components: []
+    };
+  }
+
+  const components: Array<{ name: string; code: string; type: string }> = [];
+  const componentNames = new Set<string>();
+
+  // Generate component files for each top-level node
+  for (const node of irNodes) {
+    if (node.children && node.children.length > 0) {
+      const componentName = generateComponentName(node.name);
+      const componentCode = generateReactComponent(node, componentName);
+      
+      if (!componentNames.has(componentName)) {
+        components.push({
+          name: componentName,
+          code: componentCode,
+          type: 'tsx'
+        });
+        componentNames.add(componentName);
+      }
+    }
+  }
+
+  // Generate main component that uses the components
+  let mainCode = `import React from 'react';
+import './GeneratedComponent.css';
+
+const GeneratedComponent: React.FC = () => {
+  return (
+    <div className="figma-container">
+`;
+
+  for (const node of irNodes) {
+    if (node.children && node.children.length > 0) {
+      const componentName = generateComponentName(node.name);
+      mainCode += `      <${componentName} />\n`;
+    } else {
+      mainCode += generateReactNode(node, 2);
+    }
+  }
+
+  mainCode += `    </div>
+  );
+};
+
+export default GeneratedComponent;
+
+// CSS styles
+const styles = \`
+  .figma-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+  }
+\`;
+`;
+
+  return {
+    mainCode,
+    components
+  };
+}
+
+function generateReactComponent(node: IRNode, componentName: string): string {
+  let code = `import React from 'react';
+
+const ${componentName}: React.FC = () => {
+  return (
+`;
+
+  if (node.children && node.children.length > 0) {
+    for (const child of node.children) {
+      code += generateReactNode(child, 2);
+    }
+  }
+
+  code += `  );
+};
+
+export default ${componentName};
+`;
+
+  return code;
+}
+
+function generateComponentName(name: string): string {
+  // Convert name to valid React component name
+  return name
+    .replace(/[^a-zA-Z0-9\s]/g, '') // Remove special characters
+    .replace(/\s+/g, '') // Remove spaces
+    .replace(/^[0-9]/, '') // Remove leading numbers
+    .replace(/^./, (str) => str.toUpperCase()) // Capitalize first letter
+    .replace(/^$/, 'GeneratedComponent'); // Default name if empty
+}
+
 function generateReactNode(node: IRNode, indent: number): string {
   const spaces = ' '.repeat(indent * 2);
   let code = '';

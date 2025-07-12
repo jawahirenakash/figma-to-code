@@ -27,6 +27,103 @@ struct GeneratedView: View {
   return code;
 }
 
+export function generateSwiftUIWithComponents(irNodes: IRNode[]): {
+  mainCode: string;
+  components: Array<{ name: string; code: string; type: string }>;
+} {
+  if (!irNodes || irNodes.length === 0) {
+    return {
+      mainCode: '// No design elements found',
+      components: []
+    };
+  }
+
+  const components: Array<{ name: string; code: string; type: string }> = [];
+  const componentNames = new Set<string>();
+
+  // Generate component files for each top-level node
+  for (const node of irNodes) {
+    if (node.children && node.children.length > 0) {
+      const componentName = generateComponentName(node.name);
+      const componentCode = generateSwiftUIComponent(node, componentName);
+      
+      if (!componentNames.has(componentName)) {
+        components.push({
+          name: componentName,
+          code: componentCode,
+          type: 'swift'
+        });
+        componentNames.add(componentName);
+      }
+    }
+  }
+
+  // Generate main view that uses the components
+  let mainCode = `import SwiftUI
+
+struct GeneratedView: View {
+    var body: some View {
+        VStack {
+`;
+
+  for (const node of irNodes) {
+    if (node.children && node.children.length > 0) {
+      const componentName = generateComponentName(node.name);
+      mainCode += `            ${componentName}()\n`;
+    } else {
+      mainCode += generateSwiftUINode(node, 3);
+    }
+  }
+
+  mainCode += `        }
+    }
+}
+
+#Preview {
+    GeneratedView()
+}
+`;
+
+  return {
+    mainCode,
+    components
+  };
+}
+
+function generateSwiftUIComponent(node: IRNode, componentName: string): string {
+  let code = `import SwiftUI
+
+struct ${componentName}: View {
+    var body: some View {
+`;
+
+  if (node.children && node.children.length > 0) {
+    for (const child of node.children) {
+      code += generateSwiftUINode(child, 2);
+    }
+  }
+
+  code += `    }
+}
+
+#Preview {
+    ${componentName}()
+}
+`;
+
+  return code;
+}
+
+function generateComponentName(name: string): string {
+  // Convert name to valid Swift struct name
+  return name
+    .replace(/[^a-zA-Z0-9\s]/g, '') // Remove special characters
+    .replace(/\s+/g, '') // Remove spaces
+    .replace(/^[0-9]/, '') // Remove leading numbers
+    .replace(/^./, (str) => str.toUpperCase()) // Capitalize first letter
+    .replace(/^$/, 'GeneratedComponent'); // Default name if empty
+}
+
 function generateSwiftUINode(node: IRNode, indent: number): string {
   const spaces = ' '.repeat(indent);
   let code = '';

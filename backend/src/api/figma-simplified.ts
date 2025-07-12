@@ -2,9 +2,9 @@ import express from 'express';
 import axios from 'axios';
 import dotenv from 'dotenv';
 import { parseFigmaToIR } from '../figma/parser';
-import { generateSwiftUI } from '../generators/swiftui';
-import { generateJetpack } from '../generators/jetpack';
-import { generateReact } from '../generators/react';
+import { generateSwiftUI, generateSwiftUIWithComponents } from '../generators/swiftui';
+import { generateJetpack, generateJetpackWithComponents } from '../generators/jetpack';
+import { generateReact, generateReactWithComponents } from '../generators/react';
 
 dotenv.config();
 const router = express.Router();
@@ -174,16 +174,23 @@ router.post('/generate', async (req, res) => {
     const startTime = Date.now();
     
     let generatedCode: string;
+    let componentFiles: Array<{ name: string; code: string; type: string }> = [];
     
     switch (platform) {
       case 'swiftui':
-        generatedCode = generateSwiftUI(ir);
+        const swiftResult = generateSwiftUIWithComponents(ir);
+        generatedCode = swiftResult.mainCode;
+        componentFiles = swiftResult.components;
         break;
       case 'react':
-        generatedCode = generateReact(ir);
+        const reactResult = generateReactWithComponents(ir);
+        generatedCode = reactResult.mainCode;
+        componentFiles = reactResult.components;
         break;
       case 'jetpack':
-        generatedCode = generateJetpack(ir);
+        const jetpackResult = generateJetpackWithComponents(ir);
+        generatedCode = jetpackResult.mainCode;
+        componentFiles = jetpackResult.components;
         break;
       default:
         throw new Error(`Unsupported platform: ${platform}`);
@@ -191,13 +198,14 @@ router.post('/generate', async (req, res) => {
     
     const processingTime = Date.now() - startTime;
     
-    console.log(`Generated ${platform} code in ${processingTime}ms`);
+    console.log(`Generated ${platform} code with ${componentFiles.length} component files in ${processingTime}ms`);
     
     res.json({
       code: generatedCode,
       platform: platform,
       processingTime: processingTime,
-      nodeCount: ir.length
+      nodeCount: ir.length,
+      componentFiles: componentFiles
     });
     
   } catch (err) {

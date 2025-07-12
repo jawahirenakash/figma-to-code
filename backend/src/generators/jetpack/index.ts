@@ -40,6 +40,115 @@ fun Color.Companion.fromHex(hex: String): Color {
   return code;
 }
 
+export function generateJetpackWithComponents(irNodes: IRNode[]): {
+  mainCode: string;
+  components: Array<{ name: string; code: string; type: string }>;
+} {
+  if (!irNodes || irNodes.length === 0) {
+    return {
+      mainCode: '// No design elements found',
+      components: []
+    };
+  }
+
+  const components: Array<{ name: string; code: string; type: string }> = [];
+  const componentNames = new Set<string>();
+
+  // Generate component files for each top-level node
+  for (const node of irNodes) {
+    if (node.children && node.children.length > 0) {
+      const componentName = generateComponentName(node.name);
+      const componentCode = generateJetpackComponent(node, componentName);
+      
+      if (!componentNames.has(componentName)) {
+        components.push({
+          name: componentName,
+          code: componentCode,
+          type: 'kt'
+        });
+        componentNames.add(componentName);
+      }
+    }
+  }
+
+  // Generate main screen that uses the components
+  let mainCode = `import androidx.compose.foundation.layout.*
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+
+@Composable
+fun GeneratedScreen() {
+    Column(
+        modifier = Modifier.fillMaxSize()
+    ) {
+`;
+
+  for (const node of irNodes) {
+    if (node.children && node.children.length > 0) {
+      const componentName = generateComponentName(node.name);
+      mainCode += `        ${componentName}()\n`;
+    } else {
+      mainCode += generateJetpackNode(node, 2);
+    }
+  }
+
+  mainCode += `    }
+}
+
+// Extension function for hex color support
+fun Color.Companion.fromHex(hex: String): Color {
+    val hexColor = hex.removePrefix("#")
+    val color = android.graphics.Color.parseColor("#$hexColor")
+    return Color(color)
+}
+`;
+
+  return {
+    mainCode,
+    components
+  };
+}
+
+function generateJetpackComponent(node: IRNode, componentName: string): string {
+  let code = `import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+
+@Composable
+fun ${componentName}() {
+`;
+
+  if (node.children && node.children.length > 0) {
+    for (const child of node.children) {
+      code += generateJetpackNode(child, 1);
+    }
+  }
+
+  code += `}
+`;
+
+  return code;
+}
+
+function generateComponentName(name: string): string {
+  // Convert name to valid Kotlin function name
+  return name
+    .replace(/[^a-zA-Z0-9\s]/g, '') // Remove special characters
+    .replace(/\s+/g, '') // Remove spaces
+    .replace(/^[0-9]/, '') // Remove leading numbers
+    .replace(/^./, (str) => str.toUpperCase()) // Capitalize first letter
+    .replace(/^$/, 'GeneratedComponent'); // Default name if empty
+}
+
 function generateJetpackNode(node: IRNode, indent: number): string {
   const spaces = ' '.repeat(indent * 4);
   let code = '';

@@ -41,6 +41,11 @@ interface FigmaFile {
 interface GeneratedCode {
   code: string;
   platform: string;
+  componentFiles?: Array<{
+    name: string;
+    code: string;
+    type: string;
+  }>;
 }
 
 function App() {
@@ -164,6 +169,26 @@ function App() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  };
+
+  const downloadComponentFile = (component: { name: string; code: string; type: string }) => {
+    const blob = new Blob([component.code], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${component.name}.${component.type}`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const downloadAllComponents = () => {
+    if (!generatedCode?.componentFiles) return;
+    
+    generatedCode.componentFiles.forEach(component => {
+      downloadComponentFile(component);
+    });
   };
 
   const getFileExtension = (platform: string) => {
@@ -861,15 +886,61 @@ function App() {
                     onClick={downloadCode}
                     sx={{ mr: 1 }}
                   >
-                    Download Code
+                    Download Main Code
                   </Button>
+                  {generatedCode.componentFiles && generatedCode.componentFiles.length > 0 && (
+                    <>
+                      <Button 
+                        variant="contained" 
+                        color="secondary"
+                        onClick={downloadAllComponents}
+                        sx={{ mr: 1 }}
+                      >
+                        Download All Components ({generatedCode.componentFiles.length})
+                      </Button>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+                        Individual component files generated for modular development
+                      </Typography>
+                    </>
+                  )}
                   <Button 
                     variant="outlined" 
                     onClick={() => setGeneratedCode(null)}
+                    sx={{ mt: 1 }}
                   >
                     Close
                   </Button>
                 </Box>
+
+                {/* Component Files Section */}
+                {generatedCode.componentFiles && generatedCode.componentFiles.length > 0 && (
+                  <Box sx={{ mb: 3 }}>
+                    <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
+                      📁 Component Files ({generatedCode.componentFiles.length})
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                      Each nested view has been extracted into its own component file for better modularity:
+                    </Typography>
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
+                      {generatedCode.componentFiles.map((component, index) => (
+                        <Button
+                          key={index}
+                          variant="outlined"
+                          size="small"
+                          onClick={() => downloadComponentFile(component)}
+                          sx={{ minWidth: 120 }}
+                        >
+                          📄 {component.name}.{component.type}
+                        </Button>
+                      ))}
+                    </Box>
+                  </Box>
+                )}
+
+                {/* Main Code Display */}
+                <Typography variant="h6" gutterBottom>
+                  Main Code
+                </Typography>
                 <Box 
                   component="pre" 
                   sx={{ 
