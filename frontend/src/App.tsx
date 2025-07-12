@@ -78,6 +78,7 @@ function App() {
     nestedCount?: number;
   }>>([]);
   const [selectedViewId, setSelectedViewId] = useState<string>('');
+  const [lastIR, setLastIR] = useState<any>(null);
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -346,25 +347,33 @@ function App() {
       // Get the detailed node data with nested children
       const nodeData = await figmaService.getDetailedNodeData(fileKey, nodeId);
       
-      // Find the specific view in the node
-      const view = extractedViews.find(v => v.id === viewId);
-      if (!view) {
-        throw new Error(`View ${viewId} not found`);
+      // Find the specific view in the detailed node data (not from extractedViews)
+      const nodeDocument = nodeData.document;
+      if (!nodeDocument || !nodeDocument.children) {
+        throw new Error('No document or children found in node data');
+      }
+      
+      // Find the actual view with all its nested children from the detailed node data
+      const actualView = nodeDocument.children.find((child: any) => child.id === viewId);
+      if (!actualView) {
+        throw new Error(`View ${viewId} not found in detailed node data`);
       }
 
-      // Create a mock Figma data structure with just this view and all its nested children
+      console.log(`🔍 Found view "${actualView.name}" with ${actualView.children?.length || 0} direct children`);
+      
+      // Create a mock Figma data structure with the actual view and all its nested children
       const mockFigmaData = {
         document: {
           children: [{
             id: nodeId,
-            name: nodeData.document.name,
+            name: nodeDocument.name,
             type: 'CANVAS',
-            children: [view]
+            children: [actualView] // Use the actual view with all its children
           }]
         }
       };
 
-      console.log(`📊 Sending view "${view.name}" with ${view.nestedCount || 0} nested elements to backend for parsing...`);
+      console.log(`📊 Sending view "${actualView.name}" with ${actualView.children?.length || 0} direct children to backend for parsing...`);
       
       // Send to backend for parsing
       const parseResponse = await axios.post(`${BACKEND_URL}/api/figma/parse`, {
@@ -376,6 +385,9 @@ function App() {
       
       const parseData = parseResponse.data;
       const irData = parseData.ir;
+      
+      // Store the IR data for display
+      setLastIR(irData);
       
       // Send to backend for code generation
       const codeResponse = await axios.post(`${BACKEND_URL}/api/figma/generate`, {
@@ -907,6 +919,31 @@ function App() {
             </Paper>
             
             <Divider sx={{ my: 3 }} />
+            
+            {/* JSON Viewer */}
+            {lastIR && (
+              <Paper sx={{ p: 2, mb: 3 }}>
+                <Typography variant="h6" gutterBottom>
+                  📊 Main IR JSON Data
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  This is the intermediate representation (IR) data sent to the backend for code generation:
+                </Typography>
+                <Box sx={{ maxHeight: 400, overflow: 'auto' }}>
+                  <pre style={{ 
+                    background: '#f5f5f5', 
+                    padding: 12, 
+                    borderRadius: 6, 
+                    fontSize: '0.8rem',
+                    margin: 0,
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-word'
+                  }}>
+                    {JSON.stringify(lastIR, null, 2)}
+                  </pre>
+                </Box>
+              </Paper>
+            )}
             
             {generatedCode && (
               <Paper sx={{ p: 3, mt: 3 }}>
