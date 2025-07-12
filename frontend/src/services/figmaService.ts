@@ -304,7 +304,7 @@ class FigmaService {
     try {
       console.log(`Fetching specific node: ${nodeId} from file: ${fileKey}`);
       
-      const response = await axios.get(`${FIGMA_API_BASE}/files/${fileKey}/nodes?ids=${nodeId}`, {
+      const response = await axios.get(`${FIGMA_API_BASE}/files/${fileKey}/nodes?ids=${encodeURIComponent(nodeId)}`, {
         headers: this.getHeaders(),
         timeout: 30000,
         maxContentLength: 100 * 1024 * 1024, // 100MB limit for nodes
@@ -325,8 +325,18 @@ class FigmaService {
 
     } catch (error) {
       if (axios.isAxiosError(error)) {
+        console.error('Figma API error details:', {
+          status: error.response?.status,
+          statusText: error.response?.statusText,
+          data: error.response?.data,
+          url: error.config?.url
+        });
+        
         if (error.response?.status === 404) {
           throw new Error(`Node ${nodeId} not found in file ${fileKey}`);
+        }
+        if (error.response?.status === 400) {
+          throw new Error(`Invalid node ID format: ${nodeId}. Please check the node ID and try again.`);
         }
         if (error.response?.status === 413) {
           throw new Error('Node data too large for processing');
@@ -417,7 +427,7 @@ class FigmaService {
     try {
       console.log(`Fetching detailed node data: ${nodeId} from file: ${fileKey}`);
       
-      const response = await axios.get(`${FIGMA_API_BASE}/files/${fileKey}/nodes?ids=${nodeId}&depth=10`, {
+      const response = await axios.get(`${FIGMA_API_BASE}/files/${fileKey}/nodes?ids=${encodeURIComponent(nodeId)}&depth=10`, {
         headers: this.getHeaders(),
         timeout: 30000,
         maxContentLength: 200 * 1024 * 1024, // 200MB limit for detailed data
@@ -438,8 +448,18 @@ class FigmaService {
 
     } catch (error) {
       if (axios.isAxiosError(error)) {
+        console.error('Figma API error details:', {
+          status: error.response?.status,
+          statusText: error.response?.statusText,
+          data: error.response?.data,
+          url: error.config?.url
+        });
+        
         if (error.response?.status === 404) {
           throw new Error(`Node ${nodeId} not found in file ${fileKey}`);
+        }
+        if (error.response?.status === 400) {
+          throw new Error(`Invalid node ID format: ${nodeId}. Please check the node ID and try again.`);
         }
         if (error.response?.status === 413) {
           throw new Error('Node data too large for processing');
