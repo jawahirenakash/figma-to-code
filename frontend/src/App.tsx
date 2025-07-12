@@ -79,6 +79,7 @@ function App() {
   }>>([]);
   const [selectedViewId, setSelectedViewId] = useState<string>('');
   const [lastIR, setLastIR] = useState<any>(null);
+  const [rawNodeData, setRawNodeData] = useState<any>(null);
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -300,17 +301,18 @@ function App() {
       console.log(`Parsing node: ${nodeId} from file: ${fileKey}`);
       
       // Extract views from the specific node
-      const result = await figmaService.extractViewsFromNode(fileKey, nodeId);
+      const { nodeInfo, views, rawNode } = await figmaService.extractViewsFromNode(fileKey, nodeId);
+      setRawNodeData(rawNode);
+      setExtractedViews(views);
       
-      console.log('Node parsing result:', result);
-      setExtractedViews(result.views);
+      console.log('Node parsing result:', views);
       
-      if (result.views.length === 0) {
-        setError(`No views found in node: ${result.nodeInfo.name}`);
+      if (views.length === 0) {
+        setError(`No views found in node: ${nodeInfo.name}`);
       } else {
-        console.log(`✅ Found ${result.views.length} views in node: ${result.nodeInfo.name}`);
+        console.log(`✅ Found ${views.length} views in node: ${nodeInfo.name}`);
         // Auto-select first view
-        setSelectedViewId(result.views[0].id);
+        setSelectedViewId(views[0].id);
       }
 
     } catch (err) {
@@ -917,6 +919,30 @@ function App() {
                 </Box>
               )}
             </Paper>
+            
+            {rawNodeData && (
+              <Paper sx={{ p: 2, mb: 3 }}>
+                <Typography variant="h6" gutterBottom>
+                  🗂️ Raw Figma Node/Page JSON
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  This is the complete JSON response from the initial Figma API call for the selected node/page.
+                </Typography>
+                <Box sx={{ maxHeight: 400, overflow: 'auto' }}>
+                  <pre style={{
+                    background: '#f5f5f5',
+                    padding: 12,
+                    borderRadius: 6,
+                    fontSize: '0.8rem',
+                    margin: 0,
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-word'
+                  }}>
+                    {JSON.stringify(rawNodeData, null, 2)}
+                  </pre>
+                </Box>
+              </Paper>
+            )}
             
             <Divider sx={{ my: 3 }} />
             

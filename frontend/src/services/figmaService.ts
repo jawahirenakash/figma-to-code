@@ -357,6 +357,7 @@ class FigmaService {
       children?: any[];
       nestedCount?: number;
     }>;
+    rawNode: any;
   }> {
     try {
       const nodeData = await this.getNodeData(fileKey, nodeId);
@@ -391,7 +392,8 @@ class FigmaService {
           name: nodeDocument.name,
           type: nodeDocument.type
         },
-        views: processedViews
+        views: processedViews,
+        rawNode: nodeData // <-- return the raw node data
       };
 
     } catch (error) {
