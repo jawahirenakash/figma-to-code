@@ -247,8 +247,9 @@ function App() {
           const errorData = err.response.data;
           const errorMessage = `${errorData.error}: ${errorData.details}`;
           const suggestion = errorData.suggestion ? `\n\nSuggestion: ${errorData.suggestion}` : '';
-          const fileSizeInfo = errorData.fileSize ? `\n\nFile Size: ${errorData.fileSize} MB` : '';
-          setError(errorMessage + suggestion + fileSizeInfo);
+          const fileSizeInfo = errorData.fileSize ? `\n\n📊 File Size: ${errorData.fileSize} MB` : '';
+          const maxSizeInfo = errorData.maxAllowedSize ? `\n📏 Maximum Allowed: ${errorData.maxAllowedSize}` : '';
+          setError(errorMessage + fileSizeInfo + maxSizeInfo + suggestion);
         } else {
           setError(`Network error: ${err.response?.status} - ${err.response?.data?.error || err.message}`);
         }
@@ -351,7 +352,7 @@ function App() {
                     Enter a Figma file URL or design URL to convert it to code. 
                     Supports both <code>figma.com/file/...</code> and <code>figma.com/design/...</code> URLs.
                     <br />
-                    <strong>Note:</strong> Files larger than 100MB may not process correctly.
+                    <strong>Note:</strong> Files larger than 200MB may not process correctly.
                   </Typography>
                   <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
                     <TextField

@@ -151,8 +151,8 @@ router.post('/extract', async (req, res) => {
         'Content-Type': 'application/json'
       },
       timeout: timeout,
-      maxContentLength: 100 * 1024 * 1024, // 100MB limit
-      maxBodyLength: 100 * 1024 * 1024
+      maxContentLength: 200 * 1024 * 1024, // 200MB limit
+      maxBodyLength: 200 * 1024 * 1024
     });
     
     console.log(`Figma API response received in ${Date.now() - startTime}ms`);
@@ -162,12 +162,13 @@ router.post('/extract', async (req, res) => {
     const responseSizeMB = (responseSize / 1024 / 1024).toFixed(2);
     console.log(`Figma response size: ${responseSizeMB} MB`);
     
-    if (responseSize > 100 * 1024 * 1024) {
+    if (responseSize > 200 * 1024 * 1024) {
       res.status(413).json({ 
         error: 'Figma file too large',
-        details: `File size (${responseSizeMB} MB) exceeds the 100 MB limit.`,
+        details: `File size (${responseSizeMB} MB) exceeds the 200 MB limit.`,
         suggestion: 'Try duplicating the file and removing unnecessary elements to reduce its size.',
-        fileSize: responseSizeMB
+        fileSize: responseSizeMB,
+        maxAllowedSize: '200 MB'
       });
       return;
     }
@@ -204,7 +205,9 @@ router.post('/extract', async (req, res) => {
         res.status(413).json({ 
           error: 'Figma file too large',
           details: 'This Figma file is too large to process. Please try with a smaller file or contact support for large file processing.',
-          suggestion: 'Try duplicating the file and removing unnecessary elements to reduce its size.'
+          suggestion: 'Try duplicating the file and removing unnecessary elements to reduce its size.',
+          fileSize: 'Unknown (exceeded 200 MB limit)',
+          maxAllowedSize: '200 MB'
         });
       } else {
         res.status(err.response?.status || 500).json({ 
