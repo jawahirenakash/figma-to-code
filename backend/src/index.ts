@@ -9,8 +9,8 @@ const app = express();
 const PORT = process.env.PORT || 4000;
 
 // Memory optimization settings
-app.use(express.json({ limit: '10mb' })); // Limit request body size
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.json({ limit: '50mb' })); // Increased limit for large files
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Add memory monitoring
 const logMemoryUsage = () => {

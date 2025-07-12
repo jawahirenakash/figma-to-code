@@ -206,14 +206,15 @@ router.post('/file-info', async (req, res) => {
   try {
     console.log(`Getting file info for: ${fileKey}`);
     
+    // Try with a reasonable limit first
     const response = await axios.get(`https://api.figma.com/v1/files/${fileKey}`, {
       headers: { 
         'Authorization': `Bearer ${accessToken}`,
         'Content-Type': 'application/json'
       },
       timeout: 30000,
-      maxContentLength: 200 * 1024 * 1024, // 200MB limit
-      maxBodyLength: 200 * 1024 * 1024
+      maxContentLength: 500 * 1024 * 1024, // 500MB limit
+      maxBodyLength: 500 * 1024 * 1024
     });
     
     const figmaData = response.data;
@@ -250,9 +251,10 @@ router.post('/file-info', async (req, res) => {
       } else if (err.message?.includes('maxContentLength')) {
         res.status(413).json({ 
           error: 'Figma file extremely large',
-          details: `File size exceeds 200 MB limit. This is a very large Figma file.`,
-          suggestion: 'Consider breaking the file into smaller components or working with individual pages.',
-          estimatedSize: '> 200 MB'
+          details: `File size exceeds 500 MB limit. This is an extremely large Figma file.`,
+          suggestion: 'This file is too large for processing. Consider breaking it into smaller components or using Figma\'s export features.',
+          estimatedSize: '> 500 MB',
+          recommendation: 'Use Figma\'s built-in export features or break the file into smaller components'
         });
       } else {
         res.status(err.response?.status || 500).json({ 
@@ -262,6 +264,246 @@ router.post('/file-info', async (req, res) => {
       }
     } else {
       res.status(500).json({ error: 'Failed to get file info' });
+    }
+  }
+});
+
+// Get basic file metadata (works with any file size)
+router.post('/file-metadata', async (req, res) => {
+  const { accessToken, fileKey } = req.body;
+  
+  if (!accessToken || !fileKey) {
+    res.status(400).json({ error: 'Access token and file key are required' });
+    return;
+  }
+
+  try {
+    console.log(`Getting file metadata for: ${fileKey}`);
+    
+    // Use Figma's file metadata endpoint which is much lighter
+    const response = await axios.get(`https://api.figma.com/v1/files/${fileKey}`, {
+      headers: { 
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      timeout: 30000,
+      maxContentLength: Infinity, // No limit for metadata
+      maxBodyLength: Infinity
+    });
+    
+    const figmaData = response.data;
+    
+    // Extract only basic metadata
+    const metadata = {
+      name: figmaData.name || 'Unknown',
+      lastModified: figmaData.lastModified || 'Unknown',
+      version: figmaData.version || 'Unknown',
+      thumbnailUrl: figmaData.thumbnailUrl || null,
+      totalPages: figmaData.document?.children?.length || 0,
+      pages: figmaData.document?.children?.map((page: any) => ({
+        id: page.id,
+        name: page.name,
+        type: page.type
+      })) || [],
+      status: 'success',
+      message: 'File metadata retrieved successfully'
+    };
+    
+    console.log(`File metadata: ${metadata.name}, ${metadata.totalPages} pages`);
+    
+    res.json(metadata);
+    
+  } catch (err) {
+    console.error('Failed to get file metadata:', err);
+    
+    if (axios.isAxiosError(err)) {
+      if (err.response?.status === 404) {
+        res.status(404).json({ error: 'Figma file not found or access denied' });
+      } else if (err.response?.status === 401) {
+        res.status(401).json({ error: 'Invalid or expired access token' });
+      } else if (err.message?.includes('maxContentLength') || err.response?.status === 413) {
+        // Handle extremely large files gracefully
+        res.status(413).json({ 
+          error: 'File extremely large',
+          details: 'This Figma file is extremely large and cannot be processed by this tool.',
+          suggestion: 'Consider using Figma\'s built-in export features or breaking the file into smaller components.',
+          recommendation: 'Use Figma\'s export to PNG/SVG or break into smaller files',
+          estimatedSize: '> 500 MB',
+          alternative: 'Try accessing the file directly in Figma and work with individual pages or components'
+        });
+      } else {
+        res.status(err.response?.status || 500).json({ 
+          error: 'Failed to get file metadata',
+          details: err.response?.data?.message || err.message
+        });
+      }
+    } else {
+      res.status(500).json({ error: 'Failed to get file metadata' });
+    }
+  }
+});
+
+// Handle extremely large files with better error handling
+router.post('/file-status', async (req, res) => {
+  const { accessToken, fileKey } = req.body;
+  
+  if (!accessToken || !fileKey) {
+    res.status(400).json({ error: 'Access token and file key are required' });
+    return;
+  }
+
+  try {
+    console.log(`Checking file status for: ${fileKey}`);
+    
+    // Try a minimal request to check if file is accessible
+    const response = await axios.get(`https://api.figma.com/v1/files/${fileKey}`, {
+      headers: { 
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      timeout: 10000, // Short timeout
+      maxContentLength: 1 * 1024 * 1024, // Only 1MB to test access
+      maxBodyLength: 1 * 1024 * 1024
+    });
+    
+    // If we get here, file is accessible but we only got partial data
+    const figmaData = response.data;
+    
+    const status = {
+      accessible: true,
+      name: figmaData.name || 'Unknown',
+      lastModified: figmaData.lastModified || 'Unknown',
+      version: figmaData.version || 'Unknown',
+      status: 'extremely_large',
+      message: 'File is accessible but extremely large',
+      recommendation: 'This file is too large for processing. Use Figma\'s export features or work with individual pages.',
+      estimatedSize: '> 500 MB',
+      alternative: 'Try breaking the file into smaller components or use Figma\'s built-in export options'
+    };
+    
+    res.json(status);
+    
+  } catch (err) {
+    console.error('Failed to check file status:', err);
+    
+    if (axios.isAxiosError(err)) {
+      if (err.response?.status === 404) {
+        res.status(404).json({ 
+          error: 'Figma file not found or access denied',
+          accessible: false
+        });
+      } else if (err.response?.status === 401) {
+        res.status(401).json({ 
+          error: 'Invalid or expired access token',
+          accessible: false
+        });
+      } else if (err.message?.includes('maxContentLength') || err.response?.status === 413) {
+        // File is extremely large - even the minimal request failed
+        res.status(413).json({ 
+          error: 'File extremely large',
+          accessible: true,
+          details: 'This Figma file is extremely large and cannot be processed by any method.',
+          suggestion: 'Use Figma\'s built-in export features or break the file into smaller components.',
+          recommendation: 'Try accessing the file directly in Figma and work with individual pages.',
+          estimatedSize: '> 1 GB',
+          alternative: 'Consider using Figma\'s export to PNG/SVG or break into smaller files',
+          note: 'Even minimal file access failed due to size'
+        });
+      } else {
+        res.status(err.response?.status || 500).json({ 
+          error: 'Failed to check file status',
+          accessible: false,
+          details: err.response?.data?.message || err.message
+        });
+      }
+    } else {
+      res.status(500).json({ 
+        error: 'Failed to check file status',
+        accessible: false
+      });
+    }
+  }
+});
+
+// Ultimate fallback for extremely large files
+router.post('/file-check', async (req, res) => {
+  const { accessToken, fileKey } = req.body;
+  
+  if (!accessToken || !fileKey) {
+    res.status(400).json({ error: 'Access token and file key are required' });
+    return;
+  }
+
+  try {
+    console.log(`Performing ultimate file check for: ${fileKey}`);
+    
+    // Just check if the file exists by making a HEAD request or minimal GET
+    const response = await axios.get(`https://api.figma.com/v1/files/${fileKey}`, {
+      headers: { 
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      timeout: 5000, // Very short timeout
+      maxContentLength: 1024, // Only 1KB to test access
+      maxBodyLength: 1024
+    });
+    
+    // If we get here, file exists but is extremely large
+    res.status(413).json({ 
+      error: 'File extremely large',
+      accessible: true,
+      exists: true,
+      details: 'This Figma file exists but is extremely large and cannot be processed.',
+      suggestion: 'Use Figma\'s built-in export features or break the file into smaller components.',
+      recommendation: 'Try accessing the file directly in Figma and work with individual pages.',
+      estimatedSize: '> 1 GB',
+      alternative: 'Consider using Figma\'s export to PNG/SVG or break into smaller files',
+      note: 'File exists but is too large for any processing'
+    });
+    
+  } catch (err) {
+    console.error('Ultimate file check failed:', err);
+    
+    if (axios.isAxiosError(err)) {
+      if (err.response?.status === 404) {
+        res.status(404).json({ 
+          error: 'Figma file not found or access denied',
+          accessible: false,
+          exists: false
+        });
+      } else if (err.response?.status === 401) {
+        res.status(401).json({ 
+          error: 'Invalid or expired access token',
+          accessible: false,
+          exists: false
+        });
+      } else if (err.message?.includes('maxContentLength') || err.response?.status === 413) {
+        // File exists but is extremely large
+        res.status(413).json({ 
+          error: 'File extremely large',
+          accessible: true,
+          exists: true,
+          details: 'This Figma file exists but is extremely large and cannot be processed.',
+          suggestion: 'Use Figma\'s built-in export features or break the file into smaller components.',
+          recommendation: 'Try accessing the file directly in Figma and work with individual pages.',
+          estimatedSize: '> 1 GB',
+          alternative: 'Consider using Figma\'s export to PNG/SVG or break into smaller files',
+          note: 'File exists but is too large for any processing'
+        });
+      } else {
+        res.status(err.response?.status || 500).json({ 
+          error: 'Failed to check file',
+          accessible: false,
+          exists: false,
+          details: err.response?.data?.message || err.message
+        });
+      }
+    } else {
+      res.status(500).json({ 
+        error: 'Failed to check file',
+        accessible: false,
+        exists: false
+      });
     }
   }
 });

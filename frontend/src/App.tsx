@@ -15,6 +15,7 @@ import {
 } from '@mui/material';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import axios from 'axios';
+import figmaService, { FigmaFileInfo, FigmaFileStatus } from './services/figmaService';
 
 const theme = createTheme({
   palette: {
@@ -73,12 +74,15 @@ function App() {
       setAccessToken(token);
       // Store token in localStorage for persistence
       localStorage.setItem('figma_access_token', token);
+      // Set token in Figma service
+      figmaService.setAccessToken(token);
       window.history.replaceState({}, document.title, window.location.pathname);
     } else {
       // Try to get token from localStorage on page load
       const storedToken = localStorage.getItem('figma_access_token');
       if (storedToken) {
         setAccessToken(storedToken);
+        figmaService.setAccessToken(storedToken);
       }
     }
     
@@ -105,6 +109,8 @@ function App() {
   const handleLogout = () => {
     setAccessToken(null);
     localStorage.removeItem('figma_access_token');
+    figmaService.clearAccessToken();
+    figmaService.clearAllCache();
     setGeneratedCode(null);
     setError(null);
     setFileInfo(null);
@@ -194,52 +200,111 @@ function App() {
     return designUrl;
   };
 
-  const getAvailablePages = async (fileKey: string) => {
+    const getAvailablePages = async (fileKey: string) => {
     try {
       console.log('Getting file info for:', fileKey);
       
-      // Try the new file-info endpoint first
-      const response = await axios.post(`${BACKEND_URL}/api/figma/file-info`, {
-        accessToken,
-        fileKey
-      });
+      // Try the file-info endpoint first (now using frontend service)
+      let fileInfo: FigmaFileInfo;
+      try {
+        fileInfo = await figmaService.getFileInfo(fileKey);
+        
+        console.log('File info response:', fileInfo);
+        
+        // Check if file is extremely large
+        const fileSize = parseFloat(fileInfo.fileSize || '0');
+        if (fileSize > 100) {
+          setError(`⚠️ Large File Detected: ${fileInfo.fileSize} MB\n\nThis file is very large and may cause performance issues. Consider:\n• Working with individual pages\n• Breaking the file into smaller components\n• Using the web interface for better handling`);
+          return [];
+        }
+        
+        setAvailablePages(fileInfo.pages || []);
+        
+        if (fileInfo.pages && fileInfo.pages.length > 0) {
+          setShowPageSelector(true);
+          // Auto-select first page if none selected
+          if (!selectedPageId) {
+            setSelectedPageId(fileInfo.pages[0].id);
+          }
+        }
+        
+        // Show file info
+        setFileInfo({
+          size: fileInfo.fileSize,
+          nodeCount: fileInfo.totalPages,
+          processingTime: 0
+        });
+        
+        return fileInfo.pages;
+        
+      } catch (fileInfoError) {
+        // If file-info fails due to size, try metadata endpoint
+        console.log('File info failed, trying metadata endpoint...');
+        
+        try {
+          fileInfo = await figmaService.getFileMetadata(fileKey);
+          
+          console.log('File metadata response:', fileInfo);
+          
+          setAvailablePages(fileInfo.pages || []);
       
-      console.log('File info response:', response.data);
-      
-      // Check if file is extremely large
-      const fileSize = parseFloat(response.data.fileSize || '0');
-      if (fileSize > 100) {
-        setError(`⚠️ Large File Detected: ${response.data.fileSize} MB\n\nThis file is very large and may cause performance issues. Consider:\n• Working with individual pages\n• Breaking the file into smaller components\n• Using the web interface for better handling`);
-        return [];
-      }
-      
-      setAvailablePages(response.data.pages || []);
-      
-      if (response.data.pages && response.data.pages.length > 0) {
-        setShowPageSelector(true);
-        // Auto-select first page if none selected
-        if (!selectedPageId) {
-          setSelectedPageId(response.data.pages[0].id);
+          if (fileInfo.pages && fileInfo.pages.length > 0) {
+            setShowPageSelector(true);
+            // Auto-select first page if none selected
+            if (!selectedPageId) {
+              setSelectedPageId(fileInfo.pages[0].id);
+            }
+          }
+          
+          // Show basic info without size
+          setFileInfo({
+            size: 'Unknown (extremely large)',
+            nodeCount: fileInfo.totalPages,
+            processingTime: 0
+          });
+          
+          return fileInfo.pages;
+          
+        } catch (metadataError) {
+          // If metadata also fails, try the status endpoint
+          console.log('File metadata failed, trying status endpoint...');
+          
+          try {
+            const fileStatus: FigmaFileStatus = await figmaService.checkFileStatus(fileKey);
+            
+            console.log('File status response:', fileStatus);
+            
+            // For extremely large files, we can't get page info, but we can show the file is accessible
+            if (fileStatus.accessible) {
+              setError(`🚨 Extremely Large File Detected\n\n${fileStatus.message}\n\n${fileStatus.recommendation}\n\n💡 ${fileStatus.alternative}`);
+              
+              // Show basic file info
+              setFileInfo({
+                size: fileStatus.estimatedSize || 'Unknown (extremely large)',
+                nodeCount: 0,
+                processingTime: 0
+              });
+              
+              return [];
+            } else {
+              throw new Error('File not accessible');
+            }
+            
+          } catch (statusError) {
+            // All endpoints failed
+            throw statusError;
+          }
         }
       }
       
-      // Show file info
-      setFileInfo({
-        size: response.data.fileSize,
-        nodeCount: response.data.totalPages, // Using pages as node count for now
-        processingTime: 0
-      });
-      
-      return response.data.pages;
     } catch (err) {
       console.error('Failed to get file info:', err);
       
-      if (axios.isAxiosError(err)) {
-        if (err.response?.status === 413) {
-          const errorData = err.response.data;
-          setError(`🚨 Extremely Large File: ${errorData.estimatedSize || 'Unknown size'}\n\n${errorData.details}\n\n${errorData.suggestion}`);
+      if (err instanceof Error) {
+        if (err.message.includes('extremely large') || err.message.includes('too large')) {
+          setError(`🚨 File Size Issue: ${err.message}\n\n💡 Try breaking the file into smaller components or use Figma's export features.`);
         } else {
-          setError(`Failed to get file info: ${err.response?.data?.error || err.message}`);
+          setError(`Failed to get file info: ${err.message}`);
         }
       } else {
         setError('Failed to get file information');
@@ -286,41 +351,37 @@ function App() {
         return;
       }
       
-      console.log('Making request to:', `${BACKEND_URL}/api/figma/extract`);
-      console.log('With data:', { 
-        accessToken: accessToken ? 'present' : 'missing', 
-        fileKey,
-        pageId: selectedPageId || 'all pages'
+      console.log('Getting file data and processing...');
+      
+      // Get file data from frontend service
+      const figmaData = await figmaService.getFileData(fileKey, selectedPageId || undefined);
+      
+      console.log('Figma data received, sending to backend for parsing...');
+      
+      // Send to backend for parsing
+      const parseResponse = await axios.post(`${BACKEND_URL}/api/figma/parse`, {
+        figmaData,
+        pageId: selectedPageId || undefined
       });
       
-      // Convert design URL to file URL if needed
-      const fileUrl = figmaUrl.includes('/design/') ? convertDesignUrlToFileUrl(figmaUrl) : figmaUrl;
+      console.log('Parse response:', parseResponse.data);
       
-      const response = await axios.post(`${BACKEND_URL}/api/figma/extract`, {
-        accessToken,
-        fileKey,
-        pageId: selectedPageId || undefined // Only send if a specific page is selected
-      });
+      const parseData = parseResponse.data;
+      const irData = parseData.ir;
       
-      console.log('Extract response:', response.data);
-      
-      // Handle new response format with file size info
-      const extractData = response.data;
-      const irData = extractData.ir || extractData; // Backward compatibility
-      
-      // Display file size information
-      if (extractData.fileSize) {
-        console.log(`File size: ${extractData.fileSize} MB`);
-        console.log(`Node count: ${extractData.nodeCount}`);
-        console.log(`Processing time: ${extractData.processingTime}ms`);
+      // Display processing information
+      if (parseData.processingTime) {
+        console.log(`Processing time: ${parseData.processingTime}ms`);
+        console.log(`Node count: ${parseData.nodeCount}`);
         
         setFileInfo({
-          size: extractData.fileSize,
-          nodeCount: extractData.nodeCount,
-          processingTime: extractData.processingTime
+          size: fileInfo?.size || 'Unknown',
+          nodeCount: parseData.nodeCount,
+          processingTime: parseData.processingTime
         });
       }
       
+      // Send to backend for code generation
       const codeResponse = await axios.post(`${BACKEND_URL}/api/figma/generate`, {
         ir: irData,
         platform
