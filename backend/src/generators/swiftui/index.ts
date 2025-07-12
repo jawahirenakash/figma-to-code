@@ -1,4 +1,5 @@
 import { IRNode } from '../../figma/parser';
+import { getSwiftUIComponent, getLayoutDirection, COMPONENT_GENERATORS } from '../../figma/type-mapping';
 
 export function generateSwiftUI(irNodes: IRNode[]): string {
   if (!irNodes || irNodes.length === 0) {
@@ -30,21 +31,15 @@ function generateSwiftUINode(node: IRNode, indent: number): string {
   const spaces = ' '.repeat(indent);
   let code = '';
 
-  // Determine the SwiftUI view type based on the node type
-  let viewType = 'Rectangle';
-  if (node.type === 'TEXT') {
-    viewType = 'Text';
-  } else if (node.type === 'FRAME' || node.type === 'GROUP') {
-    viewType = 'VStack';
-  } else if (node.children && node.children.length > 0) {
-    viewType = 'VStack';
-  }
+  // Get the appropriate SwiftUI component based on Figma type and layout
+  const componentType = getSwiftUIComponent(node.type, node.layout);
+  const layoutDirection = getLayoutDirection(node.type, node.layout);
 
-  // Start the view
-  if (viewType === 'Text') {
+  // Start the view based on type mapping
+  if (componentType === 'Text') {
     code += `${spaces}Text("${node.text || 'Sample Text'}")\n`;
-  } else if (viewType === 'VStack' || viewType === 'HStack') {
-    const stackType = node.layout === 'horizontal' ? 'HStack' : 'VStack';
+  } else if (componentType === 'VStack' || componentType === 'HStack') {
+    const stackType = layoutDirection === 'horizontal' ? 'HStack' : 'VStack';
     code += `${spaces}${stackType} {\n`;
     
     if (node.children && node.children.length > 0) {
@@ -54,8 +49,24 @@ function generateSwiftUINode(node: IRNode, indent: number): string {
     }
     
     code += `${spaces}}\n`;
+  } else if (componentType === 'Rectangle') {
+    code += `${spaces}Rectangle()\n`;
+  } else if (componentType === 'Circle') {
+    code += `${spaces}Circle()\n`;
+  } else if (componentType === 'Image') {
+    code += `${spaces}Image("${node.name || 'placeholder'}")\n`;
+  } else if (componentType === 'Custom View') {
+    code += `${spaces}${node.name || 'CustomView'}()\n`;
+  } else if (componentType === 'Group') {
+    code += `${spaces}Group {\n`;
+    if (node.children && node.children.length > 0) {
+      for (const child of node.children) {
+        code += generateSwiftUINode(child, indent + 2);
+      }
+    }
+    code += `${spaces}}\n`;
   } else {
-    code += `${spaces}${viewType}()\n`;
+    code += `${spaces}Rectangle()\n`;
   }
 
   // Add modifiers

@@ -70,6 +70,7 @@ function App() {
     name: string;
     type: string;
     children?: any[];
+    nestedCount?: number;
   }>>([]);
   const [selectedViewId, setSelectedViewId] = useState<string>('');
 
@@ -264,7 +265,7 @@ function App() {
     }
   };
 
-  // Generate code for a specific view
+  // Generate code for a specific view with nested children
   const handleViewCodeGeneration = async (viewId: string) => {
     if (!viewId) {
       setError('Please select a view to generate code for');
@@ -283,8 +284,8 @@ function App() {
     try {
       console.log(`Generating code for view: ${viewId}`);
       
-      // Get the specific node data
-      const nodeData = await figmaService.getNodeData(fileKey, nodeId);
+      // Get the detailed node data with nested children
+      const nodeData = await figmaService.getDetailedNodeData(fileKey, nodeId);
       
       // Find the specific view in the node
       const view = extractedViews.find(v => v.id === viewId);
@@ -292,7 +293,7 @@ function App() {
         throw new Error(`View ${viewId} not found`);
       }
 
-      // Create a mock Figma data structure with just this view
+      // Create a mock Figma data structure with just this view and all its nested children
       const mockFigmaData = {
         document: {
           children: [{
@@ -304,7 +305,7 @@ function App() {
         }
       };
 
-      console.log('Sending view data to backend for parsing...');
+      console.log(`📊 Sending view "${view.name}" with ${view.nestedCount || 0} nested elements to backend for parsing...`);
       
       // Send to backend for parsing
       const parseResponse = await axios.post(`${BACKEND_URL}/api/figma/parse`, {
@@ -327,7 +328,7 @@ function App() {
       
       setGeneratedCode(codeResponse.data);
       
-      // Update file info
+      // Update file info with nested element count
       setFileInfo({
         size: 'Node-specific',
         nodeCount: parseData.nodeCount,
@@ -765,9 +766,9 @@ function App() {
               {showNodeInput && (
                 <Box>
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                    Parse a specific Figma node (like page 8182:39931) and extract all views for code generation.
+                    Parse a specific Figma node (like page 8182:39931) and extract all views with nested children for comprehensive code generation.
                     <br />
-                    <strong>Example:</strong> Enter node ID like "8182:39931" to parse the "⚪️⚫️ Light & Dark Mode" page.
+                    <strong>Example:</strong> Enter node ID like "8182:39931" to parse the "⚪️⚫️ Light & Dark Mode" page with all nested elements.
                   </Typography>
                   <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', mb: 2 }}>
                     <TextField
@@ -796,7 +797,7 @@ function App() {
                         📊 Found {extractedViews.length} Views
                       </Typography>
                       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                        Select a view to generate code for:
+                        Select a view to generate code for (includes all nested children):
                       </Typography>
                       <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 2 }}>
                         {extractedViews.map((view) => (
@@ -807,7 +808,14 @@ function App() {
                             onClick={() => setSelectedViewId(view.id)}
                             sx={{ minWidth: 120 }}
                           >
-                            {view.name}
+                            <Box sx={{ textAlign: 'left' }}>
+                              <div>{view.name}</div>
+                              {view.nestedCount !== undefined && (
+                                <div style={{ fontSize: '0.7rem', opacity: 0.8 }}>
+                                  {view.nestedCount} nested
+                                </div>
+                              )}
+                            </Box>
                           </Button>
                         ))}
                       </Box>
@@ -815,6 +823,11 @@ function App() {
                         <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
                           <Typography variant="body2">
                             Selected: {extractedViews.find(v => v.id === selectedViewId)?.name}
+                            {extractedViews.find(v => v.id === selectedViewId)?.nestedCount !== undefined && (
+                              <span style={{ color: 'text.secondary', fontSize: '0.8rem' }}>
+                                {' '}({extractedViews.find(v => v.id === selectedViewId)?.nestedCount} nested elements)
+                              </span>
+                            )}
                           </Typography>
                           <Button 
                             variant="contained" 

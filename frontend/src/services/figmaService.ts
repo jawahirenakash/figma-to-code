@@ -337,7 +337,7 @@ class FigmaService {
     }
   }
 
-  // Extract all views (frames) from a specific node
+  // Extract all views (frames) from a specific node with nested children
   async extractViewsFromNode(fileKey: string, nodeId: string): Promise<{
     nodeInfo: any;
     views: Array<{
@@ -345,6 +345,7 @@ class FigmaService {
       name: string;
       type: string;
       children?: any[];
+      nestedCount?: number;
     }>;
   }> {
     try {
@@ -355,10 +356,24 @@ class FigmaService {
         throw new Error('No document found in node data');
       }
 
-      // Extract all top-level FRAME nodes (views)
+      // Extract all top-level FRAME nodes (views) with nested children
       const views = nodeDocument.children?.filter((child: any) => child.type === 'FRAME') || [];
       
       console.log(`📊 Found ${views.length} views in node: ${nodeDocument.name}`);
+      
+      // Process each view to include nested children
+      const processedViews = views.map((view: any) => {
+        const nestedCount = this.countNestedElements(view);
+        console.log(`🔍 View "${view.name}" has ${nestedCount} nested elements`);
+        
+        return {
+          id: view.id,
+          name: view.name,
+          type: view.type,
+          children: view.children || [],
+          nestedCount: nestedCount
+        };
+      });
       
       return {
         nodeInfo: {
@@ -366,16 +381,71 @@ class FigmaService {
           name: nodeDocument.name,
           type: nodeDocument.type
         },
-        views: views.map((view: any) => ({
-          id: view.id,
-          name: view.name,
-          type: view.type,
-          children: view.children || []
-        }))
+        views: processedViews
       };
 
     } catch (error) {
       console.error('Error extracting views from node:', error);
+      throw error;
+    }
+  }
+
+  // Count nested elements recursively
+  private countNestedElements(node: any): number {
+    if (!node.children || node.children.length === 0) {
+      return 0;
+    }
+
+    let count = node.children.length;
+    
+    // Recursively count children of children
+    for (const child of node.children) {
+      count += this.countNestedElements(child);
+    }
+    
+    return count;
+  }
+
+  // Get detailed node data with all nested children
+  async getDetailedNodeData(fileKey: string, nodeId: string): Promise<any> {
+    const cacheKey = this.getCacheKey(fileKey, `detailed-node-${nodeId}`);
+    const cached = this.getCachedData(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    try {
+      console.log(`Fetching detailed node data: ${nodeId} from file: ${fileKey}`);
+      
+      const response = await axios.get(`${FIGMA_API_BASE}/files/${fileKey}/nodes?ids=${nodeId}&depth=10`, {
+        headers: this.getHeaders(),
+        timeout: 30000,
+        maxContentLength: 200 * 1024 * 1024, // 200MB limit for detailed data
+        maxBodyLength: 200 * 1024 * 1024
+      });
+
+      const nodeData = response.data;
+      
+      if (!nodeData.nodes || !nodeData.nodes[nodeId]) {
+        throw new Error(`Node ${nodeId} not found in file ${fileKey}`);
+      }
+
+      const node = nodeData.nodes[nodeId];
+      console.log(`✅ Retrieved detailed node: ${node.document?.name || 'Unnamed'} (${nodeId})`);
+
+      this.setCachedData(cacheKey, node);
+      return node;
+
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        if (error.response?.status === 404) {
+          throw new Error(`Node ${nodeId} not found in file ${fileKey}`);
+        }
+        if (error.response?.status === 413) {
+          throw new Error('Node data too large for processing');
+        }
+        throw new Error(`Figma API error: ${error.response?.data?.message || error.message}`);
+      }
       throw error;
     }
   }

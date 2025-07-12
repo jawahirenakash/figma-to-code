@@ -42,6 +42,7 @@ export interface IRNode {
   fontSize?: number;
   fontWeight?: string;
   layout?: 'horizontal' | 'vertical' | 'none';
+  layoutMode?: string; // Original Figma layout mode
   padding?: {
     top: number;
     right: number;
@@ -120,6 +121,7 @@ export function parseFigmaToIR(figmaData: FigmaDocument, pageId?: string): IRNod
     // Parse layout properties
     if (node.layoutMode) {
       irNode.layout = node.layoutMode === 'HORIZONTAL' ? 'horizontal' : 'vertical';
+      irNode.layoutMode = node.layoutMode; // Store original layout mode
       irNode.spacing = node.itemSpacing || 0;
       
       if (node.paddingLeft || node.paddingRight || node.paddingTop || node.paddingBottom) {

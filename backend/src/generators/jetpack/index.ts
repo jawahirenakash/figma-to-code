@@ -1,4 +1,5 @@
 import { IRNode } from '../../figma/parser';
+import { getJetpackComponent, getLayoutDirection, COMPONENT_GENERATORS } from '../../figma/type-mapping';
 
 export function generateJetpack(irNodes: IRNode[]): string {
   if (!irNodes || irNodes.length === 0) {
@@ -43,28 +44,34 @@ function generateJetpackNode(node: IRNode, indent: number): string {
   const spaces = ' '.repeat(indent * 4);
   let code = '';
 
-  // Determine the Compose component type
-  let componentType = 'Box';
-  if (node.type === 'TEXT') {
-    componentType = 'Text';
-  } else if (node.type === 'FRAME' || node.type === 'GROUP') {
-    componentType = 'Column';
-  } else if (node.children && node.children.length > 0) {
-    componentType = 'Column';
-  }
+  // Get the appropriate Jetpack Compose component based on Figma type and layout
+  const componentType = getJetpackComponent(node.type, node.layout);
+  const layoutDirection = getLayoutDirection(node.type, node.layout);
 
-  // Start the component
+  // Start the component based on type mapping
   if (componentType === 'Text') {
     code += `${spaces}Text(\n`;
     code += `${spaces}    text = "${node.text || 'Sample Text'}",\n`;
   } else if (componentType === 'Column' || componentType === 'Row') {
-    const containerType = node.layout === 'horizontal' ? 'Row' : 'Column';
+    const containerType = layoutDirection === 'horizontal' ? 'Row' : 'Column';
     code += `${spaces}${containerType}(\n`;
     
     if (node.spacing && node.spacing > 0) {
-      code += `${spaces}    horizontalArrangement = Arrangement.spacedBy(${node.spacing}.dp),\n`;
+      const arrangementType = layoutDirection === 'horizontal' ? 'horizontalArrangement' : 'verticalArrangement';
+      code += `${spaces}    ${arrangementType} = Arrangement.spacedBy(${node.spacing}.dp),\n`;
     }
     
+    code += `${spaces}    modifier = Modifier`;
+  } else if (componentType === 'Box') {
+    code += `${spaces}Box(\n`;
+    code += `${spaces}    modifier = Modifier`;
+  } else if (componentType === 'Image') {
+    code += `${spaces}Image(\n`;
+    code += `${spaces}    painter = painterResource(id = R.drawable.placeholder),\n`;
+    code += `${spaces}    contentDescription = "${node.name || 'Image'}",\n`;
+    code += `${spaces}    modifier = Modifier`;
+  } else if (componentType === 'Custom Composable') {
+    code += `${spaces}${node.name || 'CustomComponent'}(\n`;
     code += `${spaces}    modifier = Modifier`;
   } else {
     code += `${spaces}Box(\n`;
