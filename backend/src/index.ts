@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import figmaRoutes from './api/figma';
+import figmaRoutes from './api/figma-simplified';
 
 dotenv.config();
 
@@ -61,12 +61,22 @@ app.use('/api/figma', figmaRoutes);
 // Root endpoint
 app.get('/', (req, res) => {
   res.json({ 
-    message: 'Figma to Code Converter API',
-    version: '1.0.0',
+    message: 'Figma to Code Converter API (Frontend-First Architecture)',
+    version: '2.0.0',
+    architecture: 'frontend-first',
+    description: 'Simplified backend for parsing and code generation only',
     endpoints: {
       health: '/health',
-      figma: '/api/figma'
-    }
+      oauth: {
+        login: '/api/figma/oauth/login',
+        callback: '/api/figma/oauth/callback'
+      },
+      processing: {
+        parse: '/api/figma/parse',
+        generate: '/api/figma/generate'
+      }
+    },
+    note: 'Frontend handles Figma API calls directly for better performance'
   });
 });
 
