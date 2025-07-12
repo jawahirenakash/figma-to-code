@@ -191,6 +191,9 @@ function App() {
     setError(null);
     
     try {
+      console.log('Making request to:', `${BACKEND_URL}/api/figma/extract`);
+      console.log('With data:', { accessToken: accessToken ? 'present' : 'missing', fileKey });
+      
       // Convert design URL to file URL if needed
       const fileUrl = figmaUrl.includes('/design/') ? convertDesignUrlToFileUrl(figmaUrl) : figmaUrl;
       
@@ -199,15 +202,26 @@ function App() {
         fileKey
       });
       
+      console.log('Extract response:', response.data);
+      
       const codeResponse = await axios.post(`${BACKEND_URL}/api/figma/generate`, {
         ir: response.data,
         platform
       });
       
+      console.log('Generate response:', codeResponse.data);
+      
       setGeneratedCode(codeResponse.data);
     } catch (err) {
-      setError('Failed to extract design or generate code. Make sure you have access to this file.');
-      console.error('Error:', err);
+      console.error('Detailed error:', err);
+      if (axios.isAxiosError(err)) {
+        console.error('Response status:', err.response?.status);
+        console.error('Response data:', err.response?.data);
+        console.error('Response headers:', err.response?.headers);
+        setError(`Network error: ${err.response?.status} - ${err.response?.data?.error || err.message}`);
+      } else {
+        setError('Failed to extract design or generate code. Make sure you have access to this file.');
+      }
     } finally {
       setLoading(false);
     }

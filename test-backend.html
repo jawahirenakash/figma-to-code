@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Backend Connection Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test { margin: 20px 0; padding: 10px; border: 1px solid #ccc; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        button { padding: 10px 20px; margin: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Backend Connection Test</h1>
+    
+    <div class="test">
+        <h3>Test 1: Health Check</h3>
+        <button onclick="testHealth()">Test Health Endpoint</button>
+        <div id="health-result"></div>
+    </div>
+    
+    <div class="test">
+        <h3>Test 2: CORS Preflight</h3>
+        <button onclick="testCors()">Test CORS</button>
+        <div id="cors-result"></div>
+    </div>
+    
+    <div class="test">
+        <h3>Test 3: Extract Endpoint (with fake data)</h3>
+        <button onclick="testExtract()">Test Extract</button>
+        <div id="extract-result"></div>
+    </div>
+
+    <script>
+        const BACKEND_URL = 'https://figma-to-code-backend.onrender.com';
+        
+        async function testHealth() {
+            const resultDiv = document.getElementById('health-result');
+            resultDiv.innerHTML = 'Testing...';
+            
+            try {
+                const response = await fetch(`${BACKEND_URL}/health`);
+                const data = await response.json();
+                resultDiv.innerHTML = `<div class="success">✅ Success! Response: ${JSON.stringify(data)}</div>`;
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">❌ Error: ${error.message}</div>`;
+            }
+        }
+        
+        async function testCors() {
+            const resultDiv = document.getElementById('cors-result');
+            resultDiv.innerHTML = 'Testing...';
+            
+            try {
+                const response = await fetch(`${BACKEND_URL}/api/figma/extract`, {
+                    method: 'OPTIONS',
+                    headers: {
+                        'Origin': 'https://figma-to-code-pi.vercel.app',
+                        'Access-Control-Request-Method': 'POST',
+                        'Access-Control-Request-Headers': 'Content-Type'
+                    }
+                });
+                
+                const corsHeaders = {
+                    'Access-Control-Allow-Origin': response.headers.get('Access-Control-Allow-Origin'),
+                    'Access-Control-Allow-Methods': response.headers.get('Access-Control-Allow-Methods'),
+                    'Access-Control-Allow-Headers': response.headers.get('Access-Control-Allow-Headers'),
+                    'Access-Control-Allow-Credentials': response.headers.get('Access-Control-Allow-Credentials')
+                };
+                
+                resultDiv.innerHTML = `<div class="success">✅ CORS Preflight Success! Headers: ${JSON.stringify(corsHeaders, null, 2)}</div>`;
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">❌ CORS Error: ${error.message}</div>`;
+            }
+        }
+        
+        async function testExtract() {
+            const resultDiv = document.getElementById('extract-result');
+            resultDiv.innerHTML = 'Testing...';
+            
+            try {
+                const response = await fetch(`${BACKEND_URL}/api/figma/extract`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Origin': 'https://figma-to-code-pi.vercel.app'
+                    },
+                    body: JSON.stringify({
+                        accessToken: 'fake-token',
+                        fileKey: 'fake-key'
+                    })
+                });
+                
+                const data = await response.json();
+                resultDiv.innerHTML = `<div class="success">✅ Extract Endpoint Responded! Status: ${response.status}, Response: ${JSON.stringify(data)}</div>`;
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">❌ Extract Error: ${error.message}</div>`;
+            }
+        }
+    </script>
+</body>
+</html> 
